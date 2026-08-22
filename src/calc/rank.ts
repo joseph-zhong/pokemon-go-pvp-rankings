@@ -127,6 +127,25 @@ export function rankAllIvs(base: BaseStats, league: League, levelCap = MAX_LEVEL
   return combos;
 }
 
+/**
+ * Rank of the first combo (in this already rank-sorted array) whose
+ * percentage drops below `threshold`. Used to find where a tier boundary
+ * (e.g. "Great" starts at 98%) actually falls for this specific species —
+ * that rank varies a lot species to species, so it can't be a fixed
+ * position on the rank axis. Returns `all.length + 1` if every combo is at
+ * or above the threshold (no combo falls below it).
+ */
+export function firstRankBelow(all: readonly RankedCombo[], threshold: number): number {
+  let lo = 0;
+  let hi = all.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (all[mid]!.percentage < threshold) hi = mid;
+    else lo = mid + 1;
+  }
+  return lo + 1;
+}
+
 export function findCombo(all: readonly RankedCombo[], ivs: Ivs): RankedCombo {
   const combo = all.find((c) => c.ivs.atk === ivs.atk && c.ivs.def === ivs.def && c.ivs.hp === ivs.hp);
   if (!combo) throw new Error(`No combo found for IVs ${ivs.atk}/${ivs.def}/${ivs.hp}`);

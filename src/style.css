@@ -8,6 +8,12 @@
   --line: rgba(28, 32, 30, 0.14);
   --panel: #fdfdfb;
   --danger: #b3432f;
+  /* Tier gauge — semantic, deliberately separate from --accent. Same 4
+     tiers as the badge: Fair/Good/Great/Top 10. */
+  --tier-fair: #9a9a90;
+  --tier-good: #3f9142;
+  --tier-great: #3b6fd1;
+  --tier-top: #b8860b;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -21,6 +27,10 @@
     --line: rgba(231, 233, 228, 0.16);
     --panel: #151b18;
     --danger: #e0806a;
+    --tier-fair: #7c8580;
+    --tier-good: #57b25b;
+    --tier-great: #6690e0;
+    --tier-top: #d9ab3d;
   }
 }
 
@@ -276,41 +286,38 @@ input[type="number"]::-webkit-outer-spin-button {
   letter-spacing: 0.04em;
   padding: 5px 10px;
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--tier-fair) 18%, transparent);
+  color: var(--tier-fair);
 }
 
 .tier-badge[data-tier="good"] {
-  background: color-mix(in srgb, var(--data) 18%, transparent);
-  color: var(--data);
+  background: color-mix(in srgb, var(--tier-good) 18%, transparent);
+  color: var(--tier-good);
 }
 
-.tier-badge[data-tier="ok"] {
-  background: color-mix(in srgb, var(--ink-soft) 16%, transparent);
-  color: var(--ink-soft);
+.tier-badge[data-tier="great"] {
+  background: color-mix(in srgb, var(--tier-great) 18%, transparent);
+  color: var(--tier-great);
 }
 
-/* The percentage fill and the rank-explorer slider are the same bar: the
-   fill shows the current combo's stat product %, the slider (transparent
-   track, layered on top) lets you drag along the full rank 1-4096 range.
-   Direction is right-to-left so rank #1 (100%) lands at the same edge the
-   fill grows toward. */
+.tier-badge[data-tier="top"] {
+  background: color-mix(in srgb, var(--tier-top) 20%, transparent);
+  color: var(--tier-top);
+}
+
+/* A static 4-color gauge (Fair/Good/Great/Top 10 — set as a background
+   gradient in JS, since the % thresholds land at a different rank for
+   every species) with a single draggable marker, not a second growing
+   fill — the marker's position on the rank axis (1-4096, linear) is the
+   same coordinate system the gauge's color stops are computed in, so they
+   always agree. Direction is right-to-left so rank #1 sits at the same
+   edge the gold "Top 10" zone ends at. */
 .rank-bar {
   position: relative;
   margin-top: 14px;
   height: 6px;
   border-radius: 999px;
-  background: var(--accent-soft);
-}
-
-.rank-bar-fill {
-  position: absolute;
-  inset: 0;
-  width: 0;
-  background: var(--accent);
-  border-radius: 999px;
-  transition: width 0.15s ease-out;
-  pointer-events: none;
+  background: var(--tier-fair);
 }
 
 .rank-bar-slider {
@@ -323,6 +330,13 @@ input[type="number"]::-webkit-outer-spin-button {
   background: transparent;
   direction: rtl;
   cursor: pointer;
+  outline: none;
+}
+
+.rank-bar-slider:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 999px;
 }
 
 .rank-bar-slider::-webkit-slider-runnable-track {
@@ -339,7 +353,7 @@ input[type="number"]::-webkit-outer-spin-button {
   height: 18px;
   margin-top: 1px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--thumb-color, var(--accent));
   border: 2px solid var(--panel);
   box-shadow: 0 0 0 1px var(--line);
   cursor: pointer;
@@ -349,7 +363,7 @@ input[type="number"]::-webkit-outer-spin-button {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--thumb-color, var(--accent));
   border: 2px solid var(--panel);
   box-shadow: 0 0 0 1px var(--line);
   cursor: pointer;

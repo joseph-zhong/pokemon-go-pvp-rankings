@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cpmForLevel } from "./cpm";
-import { bestLevelForCap, calcCp, findCombo, leagueById, rankAllIvs } from "./rank";
+import { bestLevelForCap, calcCp, findCombo, firstRankBelow, leagueById, rankAllIvs } from "./rank";
 
 // Reference values below were computed with an independent Python
 // implementation of the same formulas against real base stats pulled from
@@ -74,5 +74,24 @@ describe("rankAllIvs / findCombo", () => {
   it("keeps ranks contiguous from 1 to 4096 in sorted order", () => {
     const all = rankAllIvs(AZUMARILL, leagueById("great"));
     all.forEach((combo, i) => expect(combo.rank).toBe(i + 1));
+  });
+});
+
+describe("firstRankBelow", () => {
+  it("finds the first rank whose percentage drops below a threshold", () => {
+    const all = rankAllIvs(AZUMARILL, leagueById("great"));
+    const rank = firstRankBelow(all, 98);
+    expect(findCombo(all, all[rank - 1]!.ivs).percentage).toBeLessThan(98);
+    expect(findCombo(all, all[rank - 2]!.ivs).percentage).toBeGreaterThanOrEqual(98);
+  });
+
+  it("returns total+1 when every combo is at or above the threshold", () => {
+    const all = rankAllIvs(AZUMARILL, leagueById("great"));
+    expect(firstRankBelow(all, 0)).toBe(all.length + 1);
+  });
+
+  it("returns 1 when even the best combo is below the threshold", () => {
+    const all = rankAllIvs(AZUMARILL, leagueById("great"));
+    expect(firstRankBelow(all, 101)).toBe(1);
   });
 });

@@ -1,5 +1,5 @@
 import "./style.css";
-import { findCombo, leagueById, rankAllIvs, type RankedCombo } from "./calc/rank";
+import { findCombo, firstRankBelow, leagueById, rankAllIvs, type RankedCombo } from "./calc/rank";
 import { loadPokemon, type PokemonEntry } from "./data/pokemon";
 import { createCombobox } from "./ui/combobox";
 import { createIvStepper, type IvStepperHandle } from "./ui/ivStepper";
@@ -14,7 +14,7 @@ const els = {
   emptyState: document.getElementById("empty-state") as HTMLElement,
   rankNum: document.getElementById("result-rank-num") as HTMLElement,
   tier: document.getElementById("result-tier") as HTMLElement,
-  barFill: document.getElementById("result-bar-fill") as HTMLElement,
+  rankBar: document.getElementById("rank-bar") as HTMLElement,
   level: document.getElementById("result-level") as HTMLElement,
   cp: document.getElementById("result-cp") as HTMLElement,
   sp: document.getElementById("result-sp") as HTMLElement,
@@ -44,12 +44,54 @@ function applyCombo(combo: RankedCombo) {
   onQueryChange();
 }
 
-// Percentage tiers are a simple, commonly used heuristic for "how good is
-// this stat product relative to the best possible" — not a game mechanic.
-function tierFor(percentage: number): { label: string; tier: "great" | "good" | "ok" } {
-  if (percentage >= 98) return { label: "Great", tier: "great" };
-  if (percentage >= 90) return { label: "Good", tier: "good" };
-  return { label: "Fair", tier: "ok" };
+// Percentage/rank tiers are a simple, commonly used heuristic for "how good
+// is this stat product relative to the best possible" — not a game mechanic.
+type Tier = "fair" | "good" | "great" | "top";
+
+const TOP_TIER_RANK = 10;
+
+function tierFor(combo: RankedCombo): { label: string; tier: Tier } {
+  if (combo.rank <= TOP_TIER_RANK) return { label: "Top 10", tier: "top" };
+  if (combo.percentage >= 98) return { label: "Great", tier: "great" };
+  if (combo.percentage >= 90) return { label: "Good", tier: "good" };
+  return { label: "Fair", tier: "fair" };
+}
+
+const TIER_COLOR_VAR: Record<Tier, string> = {
+  fair: "var(--tier-fair)",
+  good: "var(--tier-good)",
+  great: "var(--tier-great)",
+  top: "var(--tier-top)",
+};
+
+/** Fraction along the rank axis, 0 (worst) to 1 (best) — the same coordinate the native range slider uses. */
+function rankFraction(rank: number, total: number): number {
+  return total <= 1 ? 1 : (total - rank) / (total - 1);
+}
+
+function clampPercent(x: number): number {
+  return Math.max(0, Math.min(100, x));
+}
+
+/**
+ * A static 4-color gauge background for the rank bar. The % thresholds
+ * (98/90) land at a different rank for every species — a low-variance
+ * species might never drop below 90% even at its worst IV combo — so the
+ * color-stop positions are computed from the actual ranking, not fixed.
+ */
+function buildGaugeBackground(all: RankedCombo[]): string {
+  const total = all.length;
+  const goodStop = clampPercent(rankFraction(Math.min(firstRankBelow(all, 90), total), total) * 100);
+  const greatStop = clampPercent(rankFraction(Math.min(firstRankBelow(all, 98), total), total) * 100);
+  const topStop = clampPercent(rankFraction(Math.min(TOP_TIER_RANK + 1, total), total) * 100);
+
+  return (
+    `linear-gradient(to right,` +
+    `var(--tier-fair) 0%, var(--tier-fair) ${goodStop}%,` +
+    `var(--tier-good) ${goodStop}%, var(--tier-good) ${greatStop}%,` +
+    `var(--tier-great) ${greatStop}%, var(--tier-great) ${topStop}%,` +
+    `var(--tier-top) ${topStop}%, var(--tier-top) 100%)`
+  );
 }
 
 function ivsLabel(ivs: { atk: number; def: number; hp: number }): string {
@@ -135,11 +177,11 @@ function render() {
   els.cp.textContent = target.cp.toLocaleString();
   els.sp.textContent = Math.round(target.statProduct).toLocaleString();
   els.pct.textContent = `${target.percentage.toFixed(1)}%`;
-  els.barFill.style.width = `${target.percentage}%`;
 
-  const { label, tier } = tierFor(target.percentage);
+  const { label, tier } = tierFor(target);
   els.tier.textContent = label;
   els.tier.dataset.tier = tier;
+  els.rankSlider.style.setProperty("--thumb-color", TIER_COLOR_VAR[tier]);
 
   els.rankSlider.max = String(total);
   els.rankSlider.value = String(target.rank);
@@ -171,6 +213,7 @@ function onStructuralChange() {
   const league = leagueById(els.leagueSelect.value);
   const levelCap = els.bestBuddy.checked ? 51 : 50;
   currentRankings = rankAllIvs(selected, league, levelCap);
+  els.rankBar.style.background = buildGaugeBackground(currentRankings);
   render();
 }
 
