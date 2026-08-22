@@ -91,9 +91,24 @@
           </div>
           <span id="result-tier" class="tier-badge">—</span>
         </div>
-        <div class="result-bar-track">
-          <div id="result-bar-fill" class="result-bar-fill"></div>
+        <div class="rank-bar">
+          <div id="result-bar-fill" class="rank-bar-fill"></div>
+          <input
+            id="rank-slider"
+            type="range"
+            min="1"
+            max="4096"
+            step="1"
+            value="1"
+            class="rank-bar-slider"
+            aria-label="Drag to browse rankings"
+          />
         </div>
+        <div class="rank-bar-ends">
+          <span>Worst (#4096)</span>
+          <span>Best (#1)</span>
+        </div>
+
         <dl class="result-stats">
           <div>
             <dt>Level</dt>
@@ -113,52 +128,21 @@
           </div>
         </dl>
 
-        <div class="explore">
-          <div class="explore-head">
-            <span class="field-label">Explore rankings</span>
-            <span id="explore-rank-label" class="explore-rank-label">—</span>
-          </div>
-          <input id="rank-slider" type="range" min="1" max="4096" step="1" value="1" aria-label="Browse rank" />
-          <div class="explore-ends">
-            <span>Best (#1)</span>
-            <span>Worst (#4096)</span>
-          </div>
-        </div>
-
         <div class="rank-tables">
-          <div>
-            <h2 class="rank-tables-title">Top 5</h2>
-            <div class="table-scroll">
-              <table class="rank-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>IVs</th>
-                    <th>Lvl</th>
-                    <th>CP</th>
-                    <th>%</th>
-                  </tr>
-                </thead>
-                <tbody id="top5-body"></tbody>
-              </table>
-            </div>
-          </div>
-          <div>
-            <h2 class="rank-tables-title">Nearby ranks</h2>
-            <div class="table-scroll">
-              <table class="rank-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>IVs</th>
-                    <th>Lvl</th>
-                    <th>CP</th>
-                    <th>%</th>
-                  </tr>
-                </thead>
-                <tbody id="nearby-body"></tbody>
-              </table>
-            </div>
+          <h2 class="rank-tables-title">Top 5 &amp; nearby ranks</h2>
+          <div class="table-scroll">
+            <table class="rank-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>IVs</th>
+                  <th>Lvl</th>
+                  <th>CP</th>
+                  <th>%</th>
+                </tr>
+              </thead>
+              <tbody id="rankings-body"></tbody>
+            </table>
           </div>
         </div>
       </section>

@@ -20,9 +20,7 @@ const els = {
   sp: document.getElementById("result-sp") as HTMLElement,
   pct: document.getElementById("result-pct") as HTMLElement,
   rankSlider: document.getElementById("rank-slider") as HTMLInputElement,
-  exploreRankLabel: document.getElementById("explore-rank-label") as HTMLElement,
-  top5Body: document.getElementById("top5-body") as HTMLElement,
-  nearbyBody: document.getElementById("nearby-body") as HTMLElement,
+  rankingsBody: document.getElementById("rankings-body") as HTMLElement,
   evolutionLinks: document.getElementById("evolution-links") as HTMLElement,
 };
 
@@ -78,14 +76,50 @@ function renderRow(combo: RankedCombo, isCurrent: boolean): HTMLTableRowElement 
   return tr;
 }
 
-function renderTable(body: HTMLElement, combos: RankedCombo[], currentRank: number) {
-  body.innerHTML = "";
-  for (const combo of combos) {
-    body.appendChild(renderRow(combo, combo.rank === currentRank));
-  }
+const TOP_N = 5;
+const NEARBY_RADIUS = 5;
+
+/**
+ * Merges the Top 5 with an 11-row window centered on the query's rank
+ * (+/-5), deduped, in rank order. A "gap" marker is inserted only when
+ * there's an actual break between the two blocks — if the query is close
+ * enough to #1 that the windows already touch, it reads as one continuous
+ * list instead of two overlapping tables. See design-doc.md section 10.
+ */
+function buildRankRows(all: RankedCombo[], targetRank: number): (RankedCombo | "gap")[] {
+  const total = all.length;
+  const top = all.slice(0, TOP_N);
+  const start = Math.max(0, targetRank - 1 - NEARBY_RADIUS);
+  const end = Math.min(total, targetRank + NEARBY_RADIUS);
+  const nearby = all.slice(start, end);
+
+  const shown = new Set(top.map((c) => c.rank));
+  const rest = nearby.filter((c) => !shown.has(c.rank));
+  if (rest.length === 0) return top;
+
+  const lastTopRank = top[top.length - 1]!.rank;
+  const rows: (RankedCombo | "gap")[] = [...top];
+  if (rest[0]!.rank > lastTopRank + 1) rows.push("gap");
+  rows.push(...rest);
+  return rows;
 }
 
-const NEARBY_RADIUS = 5;
+function renderRankRows(body: HTMLElement, rows: (RankedCombo | "gap")[], currentRank: number) {
+  body.innerHTML = "";
+  for (const row of rows) {
+    if (row === "gap") {
+      const tr = document.createElement("tr");
+      tr.className = "gap-row";
+      const td = document.createElement("td");
+      td.colSpan = 5;
+      td.textContent = "···";
+      tr.appendChild(td);
+      body.appendChild(tr);
+    } else {
+      body.appendChild(renderRow(row, row.rank === currentRank));
+    }
+  }
+}
 
 function render() {
   if (!selected || currentRankings.length === 0) return;
@@ -109,13 +143,8 @@ function render() {
 
   els.rankSlider.max = String(total);
   els.rankSlider.value = String(target.rank);
-  els.exploreRankLabel.textContent = `#${target.rank.toLocaleString()} / ${total.toLocaleString()}`;
 
-  renderTable(els.top5Body, currentRankings.slice(0, 5), target.rank);
-
-  const start = Math.max(0, target.rank - 1 - NEARBY_RADIUS);
-  const end = Math.min(total, target.rank + NEARBY_RADIUS);
-  renderTable(els.nearbyBody, currentRankings.slice(start, end), target.rank);
+  renderRankRows(els.rankingsBody, buildRankRows(currentRankings, target.rank), target.rank);
 
   updateUrl();
 }
