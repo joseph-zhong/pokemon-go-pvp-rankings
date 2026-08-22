@@ -1,0 +1,50 @@
+/* /pvp/ page only. Shared tokens/chrome/combobox live in shared/base.css. */
+
+.team-slots-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chip-btn {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: none;
+  border-radius: 999px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.chip-btn:hover {
+  filter: brightness(1.08);
+}
+
+.team-slots {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.team-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.team-slot-info {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  min-height: 1.2em;
+}
+
+.team-slot-info .score {
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
