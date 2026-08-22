@@ -1,0 +1,406 @@
+<title>Pokémon GO PvP Rank Checker — Design Doc</title>
+<style>
+  :root {
+    --paper: #f6f5f0;
+    --ink: #1c201e;
+    --ink-soft: #4b5450;
+    --accent: #2f6f5e;
+    --accent-soft: #e4ede9;
+    --data: #a8672a;
+    --data-soft: #f3e6d6;
+    --line: rgba(28, 32, 30, 0.14);
+    --panel: #fdfdfb;
+    --code-bg: #eeece4;
+  }
+  :root[data-theme="dark"] {
+    --paper: #101513;
+    --ink: #e7e9e4;
+    --ink-soft: #a8b0ac;
+    --accent: #6fbfa8;
+    --accent-soft: #17251f;
+    --data: #d99a55;
+    --data-soft: #241c11;
+    --line: rgba(231, 233, 228, 0.14);
+    --panel: #151b18;
+    --code-bg: #1a211d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #101513;
+      --ink: #e7e9e4;
+      --ink-soft: #a8b0ac;
+      --accent: #6fbfa8;
+      --accent-soft: #17251f;
+      --data: #d99a55;
+      --data-soft: #241c11;
+      --line: rgba(231, 233, 228, 0.14);
+      --panel: #151b18;
+      --code-bg: #1a211d;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.65;
+    margin: 0;
+    padding: 0 20px 96px;
+  }
+  a { color: var(--accent); }
+
+  .page {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  header.doc-head {
+    padding: 64px 0 32px;
+    border-bottom: 1px solid var(--line);
+  }
+  .eyebrow {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+    font-size: 38px;
+    line-height: 1.15;
+    font-weight: 600;
+    margin: 0 0 10px;
+    text-wrap: balance;
+  }
+  .subhead {
+    color: var(--ink-soft);
+    font-size: 16px;
+    margin: 0;
+  }
+  .subhead time { font-variant-numeric: tabular-nums; }
+
+  .stat-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    margin-top: 28px;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .stat-cell {
+    background: var(--panel);
+    padding: 16px 14px;
+  }
+  .stat-cell .n {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 19px;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .stat-cell .l {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    line-height: 1.35;
+  }
+
+  section {
+    padding: 44px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  section:last-of-type { border-bottom: none; }
+
+  .sec-num {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+    color: var(--data);
+    letter-spacing: 0.04em;
+    display: block;
+    margin-bottom: 8px;
+  }
+  h2 {
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+    font-size: 25px;
+    font-weight: 600;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+  h3 {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 28px 0 10px;
+  }
+  p { margin: 0 0 16px; }
+  p:last-child { margin-bottom: 0; }
+  strong { font-weight: 700; }
+
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.87em;
+    background: var(--code-bg);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    margin: 0 0 16px;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: 14px;
+    line-height: 1.6;
+    font-variant-numeric: tabular-nums;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 16px;
+    font-size: 15px;
+  }
+  .table-wrap { overflow-x: auto; margin-bottom: 16px; }
+  .table-wrap table { margin-bottom: 0; }
+  th, td {
+    text-align: left;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  th {
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-soft);
+    font-weight: 600;
+  }
+  td:first-child, th:first-child { padding-left: 0; }
+
+  ul, ol { margin: 0 0 16px; padding-left: 22px; }
+  li { margin-bottom: 6px; }
+  li:last-child { margin-bottom: 0; }
+
+  .callout {
+    background: var(--accent-soft);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 20px 22px;
+    margin-top: 8px;
+  }
+  .callout p:first-child { margin-top: 0; }
+
+  .diagram {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.5;
+    white-space: pre;
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    margin-bottom: 16px;
+  }
+
+  footer {
+    padding-top: 36px;
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+</style>
+
+<div class="page">
+  <header class="doc-head">
+    <p class="eyebrow">Design doc &middot; draft v1</p>
+    <h1>Pokémon GO PvP Rank Checker</h1>
+    <p class="subhead">A fast, ad-free clone of the IV rank lookup — planning notes, <time datetime="2026-08-21">2026-08-21</time></p>
+
+    <div class="stat-strip">
+      <div class="stat-cell"><span class="n">4,096</span><span class="l">IV combos per Pokémon (16³)</span></div>
+      <div class="stat-cell"><span class="n">3</span><span class="l">leagues — 1500 / 2500 / no cap</span></div>
+      <div class="stat-cell"><span class="n">MIT</span><span class="l">PvPoke gamemaster.json, our data source</span></div>
+      <div class="stat-cell"><span class="n">$0/mo</span><span class="l">target hosting, Cloudflare Pages</span></div>
+    </div>
+  </header>
+
+  <section>
+    <span class="sec-num">01 — The problem</span>
+    <h2>It looks like a database problem. It isn't.</h2>
+    <p>stadiumgaming.gg's rank checker — and every clone like it — reads as a lookup-table product, but underneath it's a small, deterministic calculation over a Pokémon's base stats. The reason these sites feel heavy is ads and bloat sitting on top of that calculation, not the calculation itself.</p>
+    <p>So the real goal isn't "clone the table." It's: <strong>run the same 4,096-way sort in the browser, with nothing in the critical path except math.</strong></p>
+  </section>
+
+  <section>
+    <span class="sec-num">02 — The algorithm</span>
+    <h2>How the ranking is actually calculated</h2>
+    <p>A Pokémon's real stat at level <code>L</code> comes from three fixed base stats (Attack, Defense, HP) and a <strong>CP Multiplier</strong> — a table Niantic defines once per half-level, from 1 to 51.</p>
+    <pre><code>atk(IV_a, L) = (baseAtk + IV_a) * CPM(L)
+def(IV_d, L) = (baseDef + IV_d) * CPM(L)
+hp (IV_h, L) = floor((baseHP + IV_h) * CPM(L))
+
+CP(L)          = floor( atk * sqrt(def) * sqrt(hp) / 10 )
+statProduct(L) = atk * def * hp        // linear — no sqrt. This is what ranking sorts by.</code></pre>
+
+    <h3>The rank-checker algorithm, per Pokémon per league</h3>
+    <pre><code>for each of the 4096 (IV_a, IV_d, IV_h) combos in 0..15:
+    walk L down from 51.0 in 0.5 steps until CP(L) &lt;= league cap
+    record statProduct at that L
+
+sort all 4096 results by statProduct, descending
+    (ties: higher Attack stat, then higher HP stat, then higher CP, then higher HP IV)
+
+rank       = 1-indexed position of the combo you asked about
+percentage = statProduct / statProduct(best combo) * 100</code></pre>
+    <p>No league ever stores 4,096 rows per Pokémon anywhere — it's recomputed on demand. 4,096 iterations of arithmetic is sub-millisecond in JS, even on a low-end phone.</p>
+
+    <div class="callout">
+      <p><strong>The counterintuitive part, worth surfacing in the UI:</strong> Attack enters the CP formula linearly, but Defense and HP sit under a square root. A <em>lower</em> Attack IV lets a Pokémon reach a higher level before hitting the CP cap, and every stat benefits from that level's higher CPM. That's why "low attack, high bulk" spreads often outrank 15/15/15 in Great and Ultra League — and why Master League, which has no CP cap, is the one place 15/15/15 is simply best: the level-cap trade-off disappears entirely.</p>
+    </div>
+  </section>
+
+  <section>
+    <span class="sec-num">03 — Source of truth</span>
+    <h2>Where the data comes from, and how it stays current</h2>
+    <p>Base stats and move data ultimately live in Niantic's <code>GAME_MASTER</code> file, shipped as a protobuf inside the game client. Nobody sane parses that directly for a hobby project.</p>
+    <p>In practice, the whole PvP tooling ecosystem — PvPoke, and almost certainly stadiumgaming.gg downstream of it — treats <strong><a href="https://github.com/pvpoke/pvpoke/blob/master/src/data/gamemaster.json">pvpoke/pvpoke's <code>gamemaster.json</code></a></strong> as the de facto source of truth: MIT licensed, maintained by an active community within hours to days of any game update, already normalized into sane JSON.</p>
+    <p><strong>Recommendation:</strong> don't re-derive this data ourselves. Pull PvPoke's <code>gamemaster.json</code> on a schedule, slim it to just what a rank checker needs (species id, name, base stats, forms, release status — drop move data entirely), and commit the slim file as a build input.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>What changes</th><th>How often</th><th>How we catch it</th></tr></thead>
+        <tbody>
+          <tr><td>New Pokémon / forms</td><td>Weekly-ish, more during events</td><td>Scheduled fetch diff</td></tr>
+          <tr><td>Base stat corrections</td><td>A few times a year</td><td>Scheduled fetch diff</td></tr>
+          <tr><td>CP Multiplier table</td><td>Only on a level-cap raise (~3× ever)</td><td>Manual — flagged in code</td></tr>
+          <tr><td>League caps / cup rules</td><td>Rare, GBL season changes</td><td>Manual review</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>A daily GitHub Action that fetches the upstream file, regenerates our slim data file, and opens a PR is enough. Cloudflare Pages redeploys on merge.</p>
+  </section>
+
+  <section>
+    <span class="sec-num">04 — Architecture</span>
+    <h2>No backend, no database, no ad network</h2>
+    <div class="diagram">                    &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9508;
+   GitHub Action    &#9474;  pvpoke/pvpoke          &#9474;
+   (daily cron)  &#9472;&#9472;&#9472;&#9482;  gamemaster.json (MIT)  &#9474;
+        &#9474;           &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9518;
+        &#9660;
+  scripts/fetch-gamemaster.ts
+  (slims to {speciesId, name, baseStats, forms, tags})
+        &#9474;
+        &#9660;
+  data/pokemon.min.json  &#9472;&#9472;&#9482; committed &#9472;&#9472;&#9482; Cloudflare Pages build
+                                                  &#9474;
+                                                  &#9660;
+                                      static HTML/JS at the edge
+                                      all ranking math runs in-browser</div>
+    <ul>
+      <li><strong>Frontend:</strong> plain TypeScript + Vite. No React/Vue — the app is one form and one result panel; a framework adds bundle weight for no real benefit here.</li>
+      <li><strong>Calc module:</strong> pure functions, zero DOM dependency, fully unit-testable.</li>
+      <li><strong>Data file:</strong> one JSON blob, ~200–400KB gzipped, fetched once, cached hard at the edge via a content-hashed filename.</li>
+      <li><strong>Hosting:</strong> Cloudflare Pages, static build, free tier covers this comfortably.</li>
+    </ul>
+  </section>
+
+  <section>
+    <span class="sec-num">05 — MVP scope</span>
+    <h2>One page, three inputs, instant output</h2>
+    <p><strong>Inputs:</strong> Pokémon search (typeahead over the local data file), league selector (Great / Ultra / Master, optionally a custom CP cap for special cups), and three IV fields — Attack, Defense, HP, 0–15 each.</p>
+    <p><strong>Outputs</strong>, live on every keystroke, no submit button, no spinner: best level under the cap and resulting CP, stat product and percentage relative to that Pokémon's best combo, and rank out of 4,096. Stretch: show the best IV spread alongside for comparison.</p>
+    <p>No accounts, no ads, no server-side anything.</p>
+  </section>
+
+  <section>
+    <span class="sec-num">06 — IV input UX</span>
+    <h2>Dropdown vs. stepper vs. slider</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Pattern</th><th>Pros</th><th>Cons</th></tr></thead>
+        <tbody>
+          <tr><td><code>&lt;select&gt;</code> dropdown</td><td>Familiar, accessible for free</td><td>Slowest: scroll a 16-item list, ×3 fields</td></tr>
+          <tr><td>Slider</td><td>Visual, fun</td><td>Imprecise on touch, still needs a numeric readout</td></tr>
+          <tr><td>Number input + stepper</td><td>Type directly, click ▲▼, or arrow-key; fast across 3 fields</td><td>Needs explicit min/max/step + validation</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>Recommendation:</strong> <code>&lt;input type="number" min="0" max="15" step="1" inputmode="numeric"&gt;</code> styled as a compact stepper, one per stat. Native keyboard support, native mobile numeric keypad, full accessibility, nothing custom to maintain. Save the real <code>&lt;select&gt;</code> for the league picker, where there are only 3–4 options and nothing faster helps.</p>
+    <p>Nearly-free extras worth building in from day one:</p>
+    <ul>
+      <li><strong>URL state</strong> — <code>?pokemon=azumarill&amp;league=great&amp;ivs=0-15-14</code>, so results are shareable and the back button works, with zero backend.</li>
+      <li><strong>Paste support</strong> — accept <code>12/14/15</code>-style strings pasted into any field and auto-split, matching common IV-screenshot formats.</li>
+      <li><strong>No debounce</strong> — the computation is sub-millisecond, so update on every keystroke instead of adding artificial lag.</li>
+    </ul>
+  </section>
+
+  <section>
+    <span class="sec-num">07 — Repo layout</span>
+    <h2>Proposed structure</h2>
+    <pre><code>pokemon-go-pvp-rankings/
+  data/
+    pokemon.min.json          # generated — slimmed gamemaster data
+    cpm.json                  # generated — CP multiplier table
+  scripts/
+    fetch-gamemaster.ts       # pulls + slims PvPoke's gamemaster.json
+  src/
+    calc/
+      cpm.ts
+      rank.ts                 # pure functions, unit tested
+      rank.test.ts
+    ui/
+      App.ts
+      PokemonSelect.ts
+      IvInputs.ts
+      ResultPanel.ts
+    main.ts
+  index.html
+  .github/workflows/update-data.yml   # daily cron -&gt; fetch -&gt; PR/auto-merge
+  README.md                   # cites PvPoke (MIT) + Niantic disclaimer</code></pre>
+  </section>
+
+  <section>
+    <span class="sec-num">08 — Performance budget</span>
+    <h2>vs. a typical ad-supported competitor</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>Typical ad-laden checker</th><th>This project</th></tr></thead>
+        <tbody>
+          <tr><td>Ad/tracker JS on critical path</td><td>Often 1–3MB, blocks interaction</td><td>None</td></tr>
+          <tr><td>Backend round-trip per lookup</td><td>Sometimes</td><td>Never — pure client-side math</td></tr>
+          <tr><td>Data payload</td><td>Varies</td><td>~200–400KB gzip, once, edge-cached</td></tr>
+          <tr><td>Time to interactive</td><td>Often multiple seconds</td><td>Sub-second, static edge-cached page</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <span class="sec-num">09 — License &amp; attribution</span>
+    <h2>PvPoke is MIT — use it with credit</h2>
+    <p>PvPoke's repository is MIT licensed, so reusing <code>gamemaster.json</code> and its general ranking approach is allowed with attribution — keep their copyright notice in this repo's README or an about page. All of this data ultimately originates from Niantic's game files, so a small "not affiliated with Niantic" disclaimer on the site itself is worth carrying too, same as PvPoke does.</p>
+  </section>
+
+  <section>
+    <span class="sec-num">10 — Next step</span>
+    <h2>Nothing is scaffolded yet</h2>
+    <div class="callout">
+      <p>If this direction looks right, the next concrete step is: initialize the Vite + TS project, write <code>cpm.ts</code> / <code>rank.ts</code> with tests against a couple of known PvPoke rankings (e.g. verify Azumarill's Great League rank-1 IV spread matches), then build the single-page UI on top.</p>
+    </div>
+  </section>
+
+  <footer>
+    Data source: <a href="https://github.com/pvpoke/pvpoke">pvpoke/pvpoke</a> (MIT). Also saved as <code>design-doc.md</code> in the project repo.
+  </footer>
+</div>

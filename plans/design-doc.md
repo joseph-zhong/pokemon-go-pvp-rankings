@@ -1,0 +1,161 @@
+# Pokémon GO PvP Rank Checker — Design Doc
+
+Status: draft v1 · 2026-08-21
+
+## 0. At a glance
+
+- 4,096 IV combinations per Pokémon (16 Attack × 16 Defense × 16 HP)
+- 3 standard leagues: Great (CP 1500), Ultra (CP 2500), Master (no cap)
+- Source of truth: [PvPoke's `gamemaster.json`](https://github.com/pvpoke/pvpoke) — MIT licensed, community-maintained
+- The whole "rank checker" is a pure function that runs in <1ms client-side — no database, no backend, no ads needed
+- Target hosting: Cloudflare Pages, $0/mo
+
+## 1. The problem
+
+stadiumgaming.gg's rank checker (and every clone like it) looks like a lookup-table product, but it isn't one. It's a small, deterministic calculation over a Pokémon's base stats. The reason these sites feel heavy is ads and bloat around the calculation, not the calculation itself. So the "clone, but performant" goal is really: **do the same 4,096-way sort, but in the browser, with no ad tech in the critical path.**
+
+## 2. How the ranking is actually calculated
+
+Every Pokémon's real-world stat at level `L` comes from three base stats (Attack, Defense, HP, fixed per species) and a **CP Multiplier** (CPM), a lookup table Niantic defines once per half-level from 1 to 51.
+
+```
+atk(IV_a, L) = (baseAtk + IV_a) * CPM(L)
+def(IV_d, L) = (baseDef + IV_d) * CPM(L)
+hp (IV_h, L) = floor((baseHP + IV_h) * CPM(L))
+
+CP(L)  = floor( atk * sqrt(def) * sqrt(hp) / 10 )
+statProduct(L) = atk * def * hp        # note: linear, no sqrt — this is what ranking sorts by
+```
+
+**The rank-checker algorithm**, for one Pokémon in one league:
+
+```
+for each of the 4096 (IV_a, IV_d, IV_h) combinations in 0..15:
+    walk L down from 51.0 in 0.5 steps until CP(L) <= league cap
+    record statProduct at that L
+sort all 4096 results by statProduct descending
+    (ties broken by: higher Attack stat, then higher HP stat, then higher CP, then higher HP IV)
+rank = 1-indexed position of the combo you asked about
+percentage = statProduct / statProduct(best combo) * 100
+```
+
+That's the entire "engine." No league is ever storing 4,096 rows per Pokémon anywhere — it's recomputed on demand, and it's cheap: 4,096 iterations of arithmetic is sub-millisecond in JS, even on a low-end phone.
+
+**The counterintuitive part** (worth surfacing in the UI): Attack enters the CP formula linearly, but Defense and HP enter under a square root. So a *lower* Attack IV lets a Pokémon climb to a higher level before hitting the CP cap, and every stat benefits from that higher level's CPM. That's why "low attack, high bulk" IV spreads often outrank 15/15/15 in Great/Ultra League — and why Master League (no CP cap) is the one place 15/15/15 is simply best, since the level-cap trade-off disappears.
+
+## 3. Source of truth — and how to keep it current
+
+Base stats and move data ultimately come from Niantic's `GAME_MASTER` file, shipped inside the Pokémon GO client as a protobuf. Nobody sane parses that directly for a hobby project.
+
+In practice, the entire PvP tool ecosystem (PvPoke, and everything downstream of it, likely including stadiumgaming.gg) treats **[pvpoke/pvpoke's `src/data/gamemaster.json`](https://github.com/pvpoke/pvpoke/blob/master/src/data/gamemaster.json)** as the de facto source of truth: it's MIT-licensed, scraped/maintained by an active community within hours to days of any game update, and already normalized into a sane JSON schema (species id, base stats, tags like `little`/`shadoweligible`, move lists, CP multiplier table).
+
+**Recommendation:** don't re-derive this data ourselves. Pull PvPoke's `gamemaster.json` on a schedule, slim it down to only what a rank checker needs (species id, name, base stats, forms, release status — drop move data, which we don't need for pure IV ranking), and commit the slim file into this repo as a build input.
+
+Update cadence, by what actually changes:
+
+| What changes | How often | How we catch it |
+|---|---|---|
+| New Pokémon / forms released | Weekly-ish (during events) | Scheduled fetch diff |
+| Base stat corrections (rare bugs) | A few times a year | Scheduled fetch diff |
+| CP Multiplier table | Only when Niantic raises the level cap (has happened ~3 times ever) | Manual — flag in code, don't automate |
+| League CP caps / cup rules | Rare, GBL season changes | Manual review, cheap to update |
+
+A daily GitHub Action that fetches PvPoke's `gamemaster.json`, regenerates our slim data file, and opens (or auto-merges, since this is a low-risk data-only diff) a PR is enough. Cloudflare Pages redeploys automatically on merge.
+
+## 4. Architecture
+
+No backend, no database, no ad network — the whole thing is a static site plus one small JSON data file.
+
+```
+                    ┌────────────────────────┐
+   GitHub Action    │  pvpoke/pvpoke          │
+   (daily cron)  ───▶  gamemaster.json (MIT)  │
+        │           └────────────────────────┘
+        ▼
+  scripts/fetch-gamemaster.ts
+  (slims to {speciesId, name, baseStats, forms, tags})
+        │
+        ▼
+  data/pokemon.min.json  ──▶ committed to repo ──▶ Cloudflare Pages build
+                                                          │
+                                                          ▼
+                                              static HTML/JS, served from edge
+                                              all ranking math runs in-browser
+```
+
+- **Frontend:** plain TypeScript + Vite. No React/Vue needed — the app is one form and one result panel; a framework adds bundle weight for no real benefit here. (Open to Preact if the UI grows a lot, but start minimal.)
+- **Calc module:** pure functions, zero DOM dependency, fully unit-testable (`cpm.ts`, `rank.ts`).
+- **Data file:** one JSON blob (~200–400KB gzipped for ~1,000+ species), fetched once, cached hard at the Cloudflare edge (`Cache-Control: immutable` + content-hashed filename).
+- **Hosting:** Cloudflare Pages, static build, free tier is enough.
+
+## 5. MVP scope
+
+One page. Inputs:
+- Pokémon search (typeahead over the local data file, no network call per keystroke)
+- League selector: Great / Ultra / Master (+ optionally a "custom CP cap" field for special cups)
+- Three IV inputs, 0–15 each: Attack, Defense, HP
+
+Outputs, updated live on every input change (no submit button, no loading spinner — it's instant):
+- Best level under the CP cap, resulting CP
+- Stat product and percentage (relative to that Pokémon's best possible combo in that league)
+- Rank out of 4,096
+- Optional stretch: "best IV spread for this league" shown alongside for comparison
+
+No accounts, no ads, no server-side anything.
+
+## 6. IV input UX — dropdown vs. stepper vs. slider
+
+| Pattern | Pros | Cons |
+|---|---|---|
+| `<select>` dropdown (0–15) | Familiar, native, accessible for free | Slowest — 2 taps + scroll through 16 items, per stat, ×3 |
+| Slider | Fun, visual | Imprecise on touch, needs a visible numeric readout anyway, awkward to land exactly on an integer |
+| Number input + stepper (spinner) | Fastest: type the digit directly, or click ▲▼, or arrow-key while focused; scales to 3 fields without excess taps | Needs explicit min/max/step + validation |
+
+**Recommendation:** a plain `<input type="number" min="0" max="15" step="1" inputmode="numeric">` styled as a compact stepper, one per stat, tab order Attack → Defense → HP. This gets native keyboard support (arrow keys, typing), native mobile numeric keypad, and full accessibility for free — no custom widget to maintain. Reserve a real `<select>` only for the league picker, where there are just 3–4 options and no speed benefit to anything fancier.
+
+Other UX details worth building in from day one since they're nearly free:
+- **URL state:** encode `?pokemon=azumarill&league=great&ivs=0-15-14` in the query string. Makes results shareable/bookmarkable and gives back-button support, with zero backend.
+- **Paste support:** let users paste `12/14/15`-style strings (common format from in-game screenshots and IV scanners) into any of the three fields and auto-split.
+- **No debounce needed** — the computation is sub-millisecond, so update on every keystroke instead of adding artificial lag.
+
+## 7. Proposed repo layout
+
+```
+pokemon-go-pvp-rankings/
+  data/
+    pokemon.min.json          # generated — slimmed gamemaster data
+    cpm.json                  # generated — CP multiplier table
+  scripts/
+    fetch-gamemaster.ts       # pulls + slims PvPoke's gamemaster.json
+  src/
+    calc/
+      cpm.ts
+      rank.ts                 # pure functions, unit tested
+      rank.test.ts
+    ui/
+      App.ts
+      PokemonSelect.ts
+      IvInputs.ts
+      ResultPanel.ts
+    main.ts
+  index.html
+  .github/workflows/update-data.yml   # daily cron → fetch → PR/auto-merge
+  README.md                   # cites PvPoke (MIT) + Niantic disclaimer
+```
+
+## 8. Performance budget (vs. a typical ad-laden competitor)
+
+| | Typical ad-supported rank checker | This project |
+|---|---|---|
+| Ad/tracker JS on critical path | Yes (often 1–3MB, blocks interaction) | None |
+| Backend round-trip per lookup | Sometimes | Never — pure client-side math |
+| Data payload | Varies | ~200–400KB gzip, once, cached at edge |
+| Time to interactive | Often multiple seconds | Sub-second on a static edge-cached page |
+
+## 9. License & attribution
+
+PvPoke's repository is MIT licensed, so reusing `gamemaster.json` (and referencing their ranking approach) is allowed with attribution — keep their copyright notice in this repo's README/about section. All of this data ultimately originates from Niantic's game files, so it's worth a small "not affiliated with Niantic" disclaimer on the site itself, same as PvPoke carries.
+
+## 10. Next step
+
+This doc covers the plan; nothing is scaffolded yet. Next concrete step, if this direction looks right: initialize the Vite + TS project, write `cpm.ts`/`rank.ts` with tests against a couple of known PvPoke rankings (e.g. verify Azumarill Great League rank 1 IVs match), then build the single-page UI on top.
