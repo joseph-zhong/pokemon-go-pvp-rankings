@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PvP IV Rank Checker — Pokemon GO</title>
+    <meta
+      name="description"
+      content="Instant, ad-free Pokemon GO PvP IV rank checker. No loading, no ads — just Pokemon, IVs, and a rank."
+    />
+    <link rel="preload" href="/data/pokemon.min.json" as="fetch" crossorigin />
+    <link rel="preload" href="/data/moves.min.json" as="fetch" crossorigin />
+    <link rel="preload" href="/data/movesets.min.json" as="fetch" crossorigin />
+  </head>
+  <body>
+    <main class="page">
+      <header class="page-head">
+        <a class="page-nav-back" href="/">&larr; Tools</a>
+        <h1>PvP IV Rank Checker</h1>
+        <p class="page-sub">Pick a Pokemon, enter its IVs, get its rank. No ads, no waiting.</p>
+      </header>
+
+      <form id="form" class="card" autocomplete="off">
+        <div class="field">
+          <label for="pokemon-input">Pokemon</label>
+          <div class="combobox" id="pokemon-combobox">
+            <input
+              id="pokemon-input"
+              type="text"
+              role="combobox"
+              aria-expanded="false"
+              aria-autocomplete="list"
+              aria-controls="pokemon-listbox"
+              placeholder="Search Pokemon…"
+              autocomplete="off"
+            />
+            <ul id="pokemon-listbox" class="combobox-list" role="listbox" hidden></ul>
+          </div>
+          <div id="evolution-links" class="evolution-links" hidden></div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="league-select">League</label>
+            <select id="league-select">
+              <option value="great">Great League (CP 1500)</option>
+              <option value="ultra">Ultra League (CP 2500)</option>
+              <option value="master">Master League (no cap)</option>
+            </select>
+          </div>
+          <label class="checkbox-field">
+            <input id="best-buddy" type="checkbox" />
+            Best Buddy (+1 level)
+          </label>
+        </div>
+
+        <div class="field">
+          <span class="field-label">IVs</span>
+          <div class="iv-row">
+            <div class="iv-stepper" data-iv="atk">
+              <label for="iv-atk">Attack</label>
+              <div class="stepper-control">
+                <button type="button" class="stepper-btn" data-dir="-1" aria-label="Decrease Attack IV">−</button>
+                <input id="iv-atk" type="number" min="0" max="15" step="1" inputmode="numeric" value="15" />
+                <button type="button" class="stepper-btn" data-dir="1" aria-label="Increase Attack IV">+</button>
+              </div>
+            </div>
+            <div class="iv-stepper" data-iv="def">
+              <label for="iv-def">Defense</label>
+              <div class="stepper-control">
+                <button type="button" class="stepper-btn" data-dir="-1" aria-label="Decrease Defense IV">−</button>
+                <input id="iv-def" type="number" min="0" max="15" step="1" inputmode="numeric" value="15" />
+                <button type="button" class="stepper-btn" data-dir="1" aria-label="Increase Defense IV">+</button>
+              </div>
+            </div>
+            <div class="iv-stepper" data-iv="hp">
+              <label for="iv-hp">HP</label>
+              <div class="stepper-control">
+                <button type="button" class="stepper-btn" data-dir="-1" aria-label="Decrease HP IV">−</button>
+                <input id="iv-hp" type="number" min="0" max="15" step="1" inputmode="numeric" value="15" />
+                <button type="button" class="stepper-btn" data-dir="1" aria-label="Increase HP IV">+</button>
+              </div>
+            </div>
+          </div>
+          <p class="iv-hint">Tip: paste an IV string like <code>12/14/15</code> into any field.</p>
+        </div>
+      </form>
+
+      <section id="result" class="card result" hidden aria-live="polite">
+        <div class="result-top">
+          <div class="result-rank">
+            <span id="result-rank-num" class="result-rank-num">—</span>
+            <span class="result-rank-total">/ 4096</span>
+          </div>
+          <span id="result-tier" class="tier-badge">—</span>
+        </div>
+        <div class="rank-bar" id="rank-bar">
+          <input
+            id="rank-slider"
+            type="range"
+            min="0"
+            max="1000"
+            step="1"
+            value="1000"
+            class="rank-bar-slider"
+            aria-label="Drag to browse rankings (logarithmic — most of the range is the top ranks)"
+          />
+        </div>
+        <div class="rank-bar-ends">
+          <span>Worst (#4096)</span>
+          <span>Best (#1)</span>
+        </div>
+
+        <dl class="result-stats">
+          <div>
+            <dt>Level</dt>
+            <dd id="result-level">—</dd>
+          </div>
+          <div>
+            <dt>CP</dt>
+            <dd id="result-cp">—</dd>
+          </div>
+          <div>
+            <dt>Stat product</dt>
+            <dd id="result-sp">—</dd>
+          </div>
+          <div>
+            <dt>Percentage</dt>
+            <dd id="result-pct">—</dd>
+          </div>
+        </dl>
+
+        <div id="moves-block" class="moves-block" hidden>
+          <h2 class="rank-tables-title">Recommended moves</h2>
+          <dl class="moves-list">
+            <div>
+              <dt>Fast</dt>
+              <dd id="moves-fast">—</dd>
+            </div>
+            <div>
+              <dt>Charged</dt>
+              <dd id="moves-charged">—</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="rank-tables">
+          <h2 class="rank-tables-title">Top 5 &amp; nearby ranks</h2>
+          <div class="table-scroll">
+            <table class="rank-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>IVs</th>
+                  <th>Lvl</th>
+                  <th>CP</th>
+                  <th>%</th>
+                </tr>
+              </thead>
+              <tbody id="rankings-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <p id="empty-state" class="empty-state">Search for a Pokemon above to see its rank.</p>
+
+      <footer class="page-foot">
+        Data: <a href="https://github.com/pvpoke/pvpoke">pvpoke/pvpoke</a> (MIT). Not affiliated with Niantic.
+        <a href="https://github.com/joseph-zhong/pokemon-go-pvp-rankings">Source</a>
+      </footer>
+    </main>
+
+    <script type="module" src="/src/ranks/main.ts"></script>
+  </body>
+</html>

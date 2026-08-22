@@ -1,9 +1,10 @@
-import "./style.css";
-import { findCombo, firstRankBelow, leagueById, rankAllIvs, type RankedCombo } from "./calc/rank";
-import { loadMoves, loadMovesets, type MoveInfo, type MovesetsBySpecies } from "./data/moves";
-import { loadPokemon, type PokemonEntry } from "./data/pokemon";
-import { createCombobox } from "./ui/combobox";
-import { createIvStepper, type IvStepperHandle } from "./ui/ivStepper";
+import "../shared/base.css";
+import "./ranks.css";
+import { findCombo, firstRankBelow, leagueById, rankAllIvs, type RankedCombo } from "../calc/rank";
+import { loadMoves, loadMovesets, type MoveInfo, type MovesetsBySpecies } from "../data/moves";
+import { loadPokemon, type PokemonEntry } from "../data/pokemon";
+import { createCombobox } from "../ui/combobox";
+import { createIvStepper, type IvStepperHandle } from "../ui/ivStepper";
 
 const els = {
   form: document.getElementById("form") as HTMLFormElement,
