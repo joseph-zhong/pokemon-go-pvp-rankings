@@ -308,10 +308,12 @@ input[type="number"]::-webkit-outer-spin-button {
 /* A static 4-color gauge (Fair/Good/Great/Top 10 — set as a background
    gradient in JS, since the % thresholds land at a different rank for
    every species) with a single draggable marker, not a second growing
-   fill — the marker's position on the rank axis (1-4096, linear) is the
-   same coordinate system the gauge's color stops are computed in, so they
-   always agree. Direction is right-to-left so rank #1 sits at the same
-   edge the gold "Top 10" zone ends at. */
+   fill. The slider's own value is a log-scaled position (0=worst,
+   1000=best rank #1), not the rank itself — see sliderPositionForRank in
+   main.ts — so most of the drag range is spent distinguishing top ranks
+   instead of the long, mostly-flat tail near #4096. The gauge's color
+   stops are computed in that same log-scaled coordinate, so the marker
+   and the colors always agree. */
 .rank-bar {
   position: relative;
   margin-top: 14px;
@@ -328,7 +330,6 @@ input[type="number"]::-webkit-outer-spin-button {
   margin: 0;
   appearance: none;
   background: transparent;
-  direction: rtl;
   cursor: pointer;
   outline: none;
 }
@@ -440,6 +441,43 @@ input[type="number"]::-webkit-outer-spin-button {
 
 .evo-chip:hover {
   filter: brightness(1.08);
+}
+
+.moves-block {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.moves-list {
+  margin: 10px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.moves-list div {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.moves-list dt {
+  flex: 0 0 64px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+}
+
+.moves-list dd {
+  margin: 0;
+  font-size: 15px;
+}
+
+.moves-list .alt {
+  color: var(--ink-soft);
+  font-size: 13px;
 }
 
 .rank-tables {

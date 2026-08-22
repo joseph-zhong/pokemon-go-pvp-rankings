@@ -22,8 +22,8 @@ jobs:
       - run: node scripts/fetch-gamemaster.mjs
       - uses: peter-evans/create-pull-request@v6
         with:
-          commit-message: "data: refresh pokemon.min.json from pvpoke/pvpoke"
+          commit-message: "data: refresh pokemon/moves/movesets data from pvpoke/pvpoke"
           title: "Daily Pokemon data refresh"
-          body: Automated refresh of `public/data/pokemon.min.json` from [pvpoke/pvpoke](https://github.com/pvpoke/pvpoke)'s `gamemaster.json`. Review the diff before merging — new/changed species only.
+          body: Automated refresh of `public/data/{pokemon,moves,movesets}.min.json` from [pvpoke/pvpoke](https://github.com/pvpoke/pvpoke)'s `gamemaster.json` and rankings data. Review the diff before merging — new/changed species and moveset recommendations only.
           branch: data/auto-refresh
           delete-branch: true

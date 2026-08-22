@@ -1,5 +1,6 @@
 import "./style.css";
 import { findCombo, firstRankBelow, leagueById, rankAllIvs, type RankedCombo } from "./calc/rank";
+import { loadMoves, loadMovesets, type MoveInfo, type MovesetsBySpecies } from "./data/moves";
 import { loadPokemon, type PokemonEntry } from "./data/pokemon";
 import { createCombobox } from "./ui/combobox";
 import { createIvStepper, type IvStepperHandle } from "./ui/ivStepper";
@@ -22,10 +23,15 @@ const els = {
   rankSlider: document.getElementById("rank-slider") as HTMLInputElement,
   rankingsBody: document.getElementById("rankings-body") as HTMLElement,
   evolutionLinks: document.getElementById("evolution-links") as HTMLElement,
+  movesBlock: document.getElementById("moves-block") as HTMLElement,
+  movesFast: document.getElementById("moves-fast") as HTMLElement,
+  movesCharged: document.getElementById("moves-charged") as HTMLElement,
 };
 
 let pokemonList: PokemonEntry[] = [];
 let pokemonById = new Map<string, PokemonEntry>();
+let moves: Record<string, MoveInfo> = {};
+let movesets: MovesetsBySpecies = {};
 let selected: PokemonEntry | null = null;
 // The full 4096-combo ranking for the current species/league/level cap. Only
 // rebuilt on "structural" changes (species, league, best buddy) — never on
@@ -64,9 +70,25 @@ const TIER_COLOR_VAR: Record<Tier, string> = {
   top: "var(--tier-top)",
 };
 
-/** Fraction along the rank axis, 0 (worst) to 1 (best) — the same coordinate the native range slider uses. */
-function rankFraction(rank: number, total: number): number {
-  return total <= 1 ? 1 : (total - rank) / (total - 1);
+// The rank axis is logarithmic, not linear: rank is linear 1-4096, but the
+// interesting differences are almost entirely in the top few hundred (see
+// design-doc.md section 2 — most of the 4096 combos cluster within a few
+// percent of each other). A linear slider gives the top 10 under a pixel
+// of drag range; log space spends most of the bar's resolution near #1 and
+// compresses the long, mostly-uninteresting tail near #4096.
+const SLIDER_RESOLUTION = 1000;
+
+/** Slider position 0 (worst) to 1 (best), log-scaled — the fraction both the thumb and the gauge colors are placed at. */
+function sliderPositionForRank(rank: number, total: number): number {
+  if (total <= 1) return 1;
+  const clamped = Math.min(Math.max(rank, 1), total);
+  return 1 - Math.log(clamped) / Math.log(total);
+}
+
+/** Inverse of sliderPositionForRank — what rank a dragged slider position corresponds to. */
+function rankForSliderPosition(position: number, total: number): number {
+  const rank = Math.round(total ** (1 - position));
+  return Math.min(total, Math.max(1, rank));
 }
 
 function clampPercent(x: number): number {
@@ -81,9 +103,9 @@ function clampPercent(x: number): number {
  */
 function buildGaugeBackground(all: RankedCombo[]): string {
   const total = all.length;
-  const goodStop = clampPercent(rankFraction(Math.min(firstRankBelow(all, 90), total), total) * 100);
-  const greatStop = clampPercent(rankFraction(Math.min(firstRankBelow(all, 98), total), total) * 100);
-  const topStop = clampPercent(rankFraction(Math.min(TOP_TIER_RANK + 1, total), total) * 100);
+  const goodStop = clampPercent(sliderPositionForRank(Math.min(firstRankBelow(all, 90), total), total) * 100);
+  const greatStop = clampPercent(sliderPositionForRank(Math.min(firstRankBelow(all, 98), total), total) * 100);
+  const topStop = clampPercent(sliderPositionForRank(Math.min(TOP_TIER_RANK + 1, total), total) * 100);
 
   return (
     `linear-gradient(to right,` +
@@ -183,8 +205,7 @@ function render() {
   els.tier.dataset.tier = tier;
   els.rankSlider.style.setProperty("--thumb-color", TIER_COLOR_VAR[tier]);
 
-  els.rankSlider.max = String(total);
-  els.rankSlider.value = String(target.rank);
+  els.rankSlider.value = String(Math.round(sliderPositionForRank(target.rank, total) * SLIDER_RESOLUTION));
 
   renderRankRows(els.rankingsBody, buildRankRows(currentRankings, target.rank), target.rank);
 
@@ -203,6 +224,38 @@ function updateUrl() {
   history.replaceState(null, "", `?${params.toString()}`);
 }
 
+function moveLabel(moveId: string): string {
+  const info = moves[moveId];
+  if (!info) return moveId;
+  return `${info.name} (${info.type.charAt(0).toUpperCase()}${info.type.slice(1)})`;
+}
+
+function renderMoveField(el: HTMLElement, primaryLabel: string, altMoveId: string | undefined) {
+  el.textContent = primaryLabel;
+  if (altMoveId) {
+    const alt = document.createElement("span");
+    alt.className = "alt";
+    alt.textContent = ` · alt: ${moveLabel(altMoveId)}`;
+    el.appendChild(alt);
+  }
+}
+
+// Moves depend only on species + league (not IVs or Best Buddy — moveset
+// choice doesn't change with level), computed straight from PvPoke's own
+// battle-sim output rather than something we simulate. See design-doc.md
+// section 13. Species PvPoke never simulated just hide the block.
+function renderMoves(entry: PokemonEntry) {
+  const leagueKey = els.leagueSelect.value as "great" | "ultra" | "master";
+  const moveset = movesets[entry.id]?.[leagueKey];
+  if (!moveset) {
+    els.movesBlock.hidden = true;
+    return;
+  }
+  els.movesBlock.hidden = false;
+  renderMoveField(els.movesFast, moveLabel(moveset.fast), moveset.altFast);
+  renderMoveField(els.movesCharged, moveset.charged.map(moveLabel).join(", "), moveset.altCharged);
+}
+
 /** Recompute the full ranking table — call only when species/league/level-cap change. */
 function onStructuralChange() {
   if (!selected) {
@@ -214,6 +267,7 @@ function onStructuralChange() {
   const levelCap = els.bestBuddy.checked ? 51 : 50;
   currentRankings = rankAllIvs(selected, league, levelCap);
   els.rankBar.style.background = buildGaugeBackground(currentRankings);
+  renderMoves(selected);
   render();
 }
 
@@ -302,7 +356,9 @@ els.form.addEventListener("submit", (e) => e.preventDefault());
 // Rank explorer slider: dragging it is just another way to pick a combo,
 // same as typing IVs or clicking a table row — it sets the real query state.
 els.rankSlider.addEventListener("input", () => {
-  const combo = currentRankings[Number(els.rankSlider.value) - 1];
+  const position = Number(els.rankSlider.value) / SLIDER_RESOLUTION;
+  const rank = rankForSliderPosition(position, currentRankings.length);
+  const combo = currentRankings[rank - 1];
   if (combo) applyCombo(combo);
 });
 
@@ -329,9 +385,11 @@ if (ivParam) {
   if (hp !== undefined) steppers.hp.set(hp);
 }
 
-loadPokemon().then((data) => {
-  pokemonList = data;
-  pokemonById = new Map(data.map((p) => [p.id, p]));
+Promise.all([loadPokemon(), loadMoves(), loadMovesets()]).then(([pokemonData, movesData, movesetsData]) => {
+  pokemonList = pokemonData;
+  pokemonById = new Map(pokemonData.map((p) => [p.id, p]));
+  moves = movesData;
+  movesets = movesetsData;
   const pokemonParam = params.get("p");
   if (pokemonParam) {
     const entry = pokemonById.get(pokemonParam);

@@ -196,6 +196,16 @@ PvPoke's `gamemaster.json` already encodes this per entry — no new data source
 
 **UI:** below the Pokemon search box, show "Evolves from: X" / "Evolves into: Y" as clickable chips whenever they apply (hidden entirely for a Pokemon with neither, e.g. a fully-evolved solo species). Clicking a chip re-runs the same species lookup as picking it from the search box — same IVs, same league, new base stats — so hopping from Frillish to Jellicent is one click, not a second search.
 
-## 13. Next step
+## 13. Recommended moves
 
-MVP is live (see the open PR). §10-12 are iteration on top of it; §12 (evolution navigation) is next up for implementation.
+IVs and rank are only half of what stadiumgaming.gg/PvPoke show — the other half is "what moveset should this thing actually run in this league." That's a fundamentally different kind of computation than everything else in this doc: ranking IVs is closed-form math (§2), but ranking movesets requires simulating battles against a curated list of meta-relevant opponents and scoring win rates — there's no formula for it.
+
+**Decision: don't build a battle simulator. Pull PvPoke's precomputed output instead.** Their `src/data/rankings/all/overall/rankings-<cp>.json` (MIT, same repo we already depend on) is the *result* of their simulator — for every ranked species, it already includes a `moveset` array (best fast move + best 1-2 charged moves) and usage-ranked `moves.fastMoves`/`moves.chargedMoves` lists (so the 2nd-ranked entry is a ready-made "alternative" suggestion). This keeps the project's whole shape intact: still zero backend, still "pull data, slim it, ship it statically," no new runtime complexity. The tradeoff is real and worth naming: this is *their* opinionated meta snapshot (which opponents they chose to simulate against, how they weight scores), not something we derive from first principles the way IV ranking is — same category of tradeoff as trusting their base stats, just one level more opinionated.
+
+**Data change:** `scripts/fetch-gamemaster.mjs` additionally fetches `rankings-1500.json` / `-2500.json` / `-10000.json` (Great/Ultra/Master) and a move-name/type dictionary from `gamemaster.json`'s `moves` array, producing two new slim files: `moves.min.json` (`moveId → {name, type}`, ~349 entries) and `movesets.min.json` (`speciesId → { great?, ultra?, master?: { fast, charged: string[], altFast?, altCharged? } }`). Species PvPoke never simulated (truly unviable ones) simply have no entry — the UI hides the moves section rather than guessing.
+
+**UI:** a "Recommended moves" block in the result panel, driven only by species + league (not IVs or Best Buddy, since moveset doesn't depend on level) — Fast move plus an alternative if one exists, Charged move(s) plus an alternative.
+
+## 14. Next step
+
+MVP is live (see the open PR). §10-13 are iteration on top of it; §13 (recommended moves) is next up for implementation.

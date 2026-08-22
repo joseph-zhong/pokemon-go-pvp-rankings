@@ -9,6 +9,8 @@
       content="Instant, ad-free Pokemon GO PvP IV rank checker. No loading, no ads — just Pokemon, IVs, and a rank."
     />
     <link rel="preload" href="/data/pokemon.min.json" as="fetch" crossorigin />
+    <link rel="preload" href="/data/moves.min.json" as="fetch" crossorigin />
+    <link rel="preload" href="/data/movesets.min.json" as="fetch" crossorigin />
   </head>
   <body>
     <main class="page">
@@ -95,12 +97,12 @@
           <input
             id="rank-slider"
             type="range"
-            min="1"
-            max="4096"
+            min="0"
+            max="1000"
             step="1"
-            value="1"
+            value="1000"
             class="rank-bar-slider"
-            aria-label="Drag to browse rankings"
+            aria-label="Drag to browse rankings (logarithmic — most of the range is the top ranks)"
           />
         </div>
         <div class="rank-bar-ends">
@@ -126,6 +128,20 @@
             <dd id="result-pct">—</dd>
           </div>
         </dl>
+
+        <div id="moves-block" class="moves-block" hidden>
+          <h2 class="rank-tables-title">Recommended moves</h2>
+          <dl class="moves-list">
+            <div>
+              <dt>Fast</dt>
+              <dd id="moves-fast">—</dd>
+            </div>
+            <div>
+              <dt>Charged</dt>
+              <dd id="moves-charged">—</dd>
+            </div>
+          </dl>
+        </div>
 
         <div class="rank-tables">
           <h2 class="rank-tables-title">Top 5 &amp; nearby ranks</h2>
