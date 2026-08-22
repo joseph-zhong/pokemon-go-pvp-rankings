@@ -1,187 +1,4 @@
-:root {
-  --paper: #f6f5f0;
-  --ink: #1c201e;
-  --ink-soft: #5a635e;
-  --accent: #2f6f5e;
-  --accent-soft: #e4ede9;
-  --data: #a8672a;
-  --line: rgba(28, 32, 30, 0.14);
-  --panel: #fdfdfb;
-  --danger: #b3432f;
-  /* Tier gauge — semantic, deliberately separate from --accent. Same 4
-     tiers as the badge: Fair/Good/Great/Top 10. */
-  --tier-fair: #9a9a90;
-  --tier-good: #3f9142;
-  --tier-great: #3b6fd1;
-  --tier-top: #b8860b;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #101513;
-    --ink: #e7e9e4;
-    --ink-soft: #a8b0ac;
-    --accent: #6fbfa8;
-    --accent-soft: #17251f;
-    --data: #d99a55;
-    --line: rgba(231, 233, 228, 0.16);
-    --panel: #151b18;
-    --danger: #e0806a;
-    --tier-fair: #7c8580;
-    --tier-good: #57b25b;
-    --tier-great: #6690e0;
-    --tier-top: #d9ab3d;
-  }
-}
-
-* {
-  box-sizing: border-box;
-}
-
-[hidden] {
-  display: none !important;
-}
-
-body {
-  margin: 0;
-  background: var(--paper);
-  color: var(--ink);
-  font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  font-size: 16px;
-  line-height: 1.5;
-}
-
-.page {
-  max-width: 480px;
-  margin: 0 auto;
-  padding: 48px 20px 64px;
-}
-
-.page-head {
-  text-align: center;
-  margin-bottom: 28px;
-}
-
-h1 {
-  font-size: 26px;
-  margin: 0 0 6px;
-}
-
-.page-sub {
-  color: var(--ink-soft);
-  margin: 0;
-  font-size: 15px;
-}
-
-.card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.field-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.field-row .field {
-  flex: 1 1 auto;
-  min-width: 160px;
-}
-
-label,
-.field-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-soft);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.checkbox-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--ink);
-  text-transform: none;
-  letter-spacing: normal;
-  padding-bottom: 10px;
-}
-
-input[type="text"],
-select {
-  font: inherit;
-  color: var(--ink);
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px 12px;
-  width: 100%;
-}
-
-input[type="text"]:focus-visible,
-select:focus-visible,
-input[type="number"]:focus-visible,
-.stepper-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.combobox {
-  position: relative;
-}
-
-.combobox-list {
-  position: absolute;
-  z-index: 10;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  margin: 0;
-  padding: 4px;
-  list-style: none;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  max-height: 260px;
-  overflow-y: auto;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
-
-.combobox-option {
-  padding: 8px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.combobox-option .dex {
-  color: var(--ink-soft);
-  font-variant-numeric: tabular-nums;
-  font-size: 12.5px;
-}
-
-.combobox-option[aria-selected="true"],
-.combobox-option:hover {
-  background: var(--accent-soft);
-}
+/* /ranks/ page only. Shared tokens/chrome/combobox live in shared/base.css. */
 
 .iv-row {
   display: grid;
@@ -221,6 +38,11 @@ input[type="number"]:focus-visible,
   filter: brightness(1.08);
 }
 
+.stepper-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 input[type="number"] {
   font: inherit;
   font-variant-numeric: tabular-nums;
@@ -237,6 +59,11 @@ input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+input[type="number"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .iv-hint {
@@ -308,10 +135,12 @@ input[type="number"]::-webkit-outer-spin-button {
 /* A static 4-color gauge (Fair/Good/Great/Top 10 — set as a background
    gradient in JS, since the % thresholds land at a different rank for
    every species) with a single draggable marker, not a second growing
-   fill — the marker's position on the rank axis (1-4096, linear) is the
-   same coordinate system the gauge's color stops are computed in, so they
-   always agree. Direction is right-to-left so rank #1 sits at the same
-   edge the gold "Top 10" zone ends at. */
+   fill. The slider's own value is a log-scaled position (0=worst,
+   1000=best rank #1), not the rank itself — see sliderPositionForRank in
+   main.ts — so most of the drag range is spent distinguishing top ranks
+   instead of the long, mostly-flat tail near #4096. The gauge's color
+   stops are computed in that same log-scaled coordinate, so the marker
+   and the colors always agree. */
 .rank-bar {
   position: relative;
   margin-top: 14px;
@@ -328,7 +157,6 @@ input[type="number"]::-webkit-outer-spin-button {
   margin: 0;
   appearance: none;
   background: transparent;
-  direction: rtl;
   cursor: pointer;
   outline: none;
 }
@@ -442,6 +270,43 @@ input[type="number"]::-webkit-outer-spin-button {
   filter: brightness(1.08);
 }
 
+.moves-block {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.moves-list {
+  margin: 10px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.moves-list div {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.moves-list dt {
+  flex: 0 0 64px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+}
+
+.moves-list dd {
+  margin: 0;
+  font-size: 15px;
+}
+
+.moves-list .alt {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
 .rank-tables {
   margin-top: 24px;
 }
@@ -511,22 +376,4 @@ input[type="number"]::-webkit-outer-spin-button {
   text-align: center;
   color: var(--ink-soft);
   letter-spacing: 0.15em;
-}
-
-.empty-state {
-  text-align: center;
-  color: var(--ink-soft);
-  font-size: 14px;
-  margin-top: 20px;
-}
-
-.page-foot {
-  margin-top: 40px;
-  text-align: center;
-  font-size: 12.5px;
-  color: var(--ink-soft);
-}
-
-.page-foot a {
-  color: var(--accent);
 }

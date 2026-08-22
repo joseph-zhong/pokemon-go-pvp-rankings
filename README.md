@@ -13,19 +13,21 @@ and 0-15 for each of the stats.
 
 Hosted on CloudFlare pages, zero cost, zero bullshit. 
 
-## How it works
+## Pages
 
-See [`plans/design-doc.md`](plans/design-doc.md) for the full write-up. Short
-version: this is a pure calculation, not a database — for any Pokemon, walk
-each of the 4096 possible IV combos to the highest level under a league's CP
-cap, sort by stat product, and your rank is where you land. It runs
-client-side in under a millisecond; there's nothing to look up.
+Multi-page static site (separate Vite entry points, no client-side router):
+
+- `/` — landing page linking to the tools below
+- `/ranks/` — IV rank checker. See [`plans/ranks/design-doc.md`](plans/ranks/design-doc.md) for the full write-up. Short version: this is a pure calculation, not a database — for any Pokemon, walk each of the 4096 possible IV combos to the highest level under a league's CP cap, sort by stat product, and your rank is where you land. It runs client-side in under a millisecond; there's nothing to look up.
+- `/pvp/` — team builder (in progress). See [`plans/pvp/design-doc.md`](plans/pvp/design-doc.md).
+
+Shared code lives in `src/calc/`, `src/data/`, `src/ui/`, `src/shared/`; each page's own logic/styles live in `src/<page>/`.
 
 ## Development
 
 ```sh
 npm install
-npm run dev      # local dev server
+npm run dev      # local dev server (serves /, /ranks/, /pvp/)
 npm test         # vitest — calc engine is unit tested against known values
 npm run build    # typecheck + production build into dist/
 ```

@@ -2,7 +2,11 @@
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 
-# The Pokemon dataset is refreshed daily by .github/workflows/update-data.yml
-# and isn't content-hashed, so give it a short cache instead.
+# These are all refreshed daily by .github/workflows/update-data.yml and
+# aren't content-hashed, so give them a short cache instead.
 /data/pokemon.min.json
+  Cache-Control: public, max-age=3600, must-revalidate
+/data/moves.min.json
+  Cache-Control: public, max-age=3600, must-revalidate
+/data/movesets.min.json
   Cache-Control: public, max-age=3600, must-revalidate

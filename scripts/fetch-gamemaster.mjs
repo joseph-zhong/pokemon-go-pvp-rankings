@@ -1,19 +1,31 @@
 // Pulls the upstream game data we depend on and slims it down to just what
-// the rank checker needs: species id/name/dex and base stats.
+// the app needs: species base stats/evolutions, a move name/type dictionary,
+// and per-league recommended movesets.
 //
 // Source: pvpoke/pvpoke (MIT licensed) — the de facto community source of
-// truth for Pokemon GO PvP data. See design-doc.md section 3 for why.
+// truth for Pokemon GO PvP data, and (for movesets) the output of their
+// battle simulator rather than something we compute ourselves. See
+// design-doc.md sections 3 and 13 for why.
 import { writeFile } from "node:fs/promises";
 
-const GAMEMASTER_URL =
-  "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data/gamemaster.json";
-const OUT_PATH = new URL("../public/data/pokemon.min.json", import.meta.url);
+const RAW_BASE = "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data";
+const GAMEMASTER_URL = `${RAW_BASE}/gamemaster.json`;
+const LEAGUES = [
+  { key: "great", cp: 1500 },
+  { key: "ultra", cp: 2500 },
+  { key: "master", cp: 10000 },
+];
 
-const res = await fetch(GAMEMASTER_URL);
-if (!res.ok) {
-  throw new Error(`Failed to fetch gamemaster.json: ${res.status} ${res.statusText}`);
+async function fetchJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
+  return res.json();
 }
-const gamemaster = await res.json();
+
+const [gamemaster, ...rankingsByLeague] = await Promise.all([
+  fetchJson(GAMEMASTER_URL),
+  ...LEAGUES.map((league) => fetchJson(`${RAW_BASE}/rankings/all/overall/rankings-${league.cp}.json`)),
+]);
 
 const pokemon = gamemaster.pokemon
   .filter((p) => p.released && p.baseStats)
@@ -32,5 +44,39 @@ const pokemon = gamemaster.pokemon
   }))
   .sort((a, b) => a.dex - b.dex || a.id.localeCompare(b.id));
 
-await writeFile(OUT_PATH, JSON.stringify(pokemon), "utf8");
-console.log(`Wrote ${pokemon.length} Pokemon to ${OUT_PATH.pathname}`);
+const moves = Object.fromEntries(gamemaster.moves.map((m) => [m.moveId, { name: m.name, type: m.type }]));
+
+// speciesId -> { great?, ultra?, master?: { fast, charged, altFast?, altCharged? } }
+// `moveset` is PvPoke's top pick (1 fast + 1-2 charged); the next-ranked
+// entries in moves.fastMoves/chargedMoves (sorted by simulated usage) become
+// the "alternative" suggestions. Species PvPoke never simulated just don't
+// get an entry — the UI hides the section rather than guessing.
+// moves.fastMoves/chargedMoves are NOT pre-sorted by usage in the source
+// data (only `moveset`, PvPoke's own top pick, is authoritative as-is) —
+// sort by `uses` ourselves before picking an alternate from what's left.
+function topByUsage(candidates, exclude) {
+  return [...candidates]
+    .sort((a, b) => b.uses - a.uses)
+    .find((m) => !exclude.includes(m.moveId))?.moveId;
+}
+
+const movesets = {};
+LEAGUES.forEach((league, i) => {
+  for (const entry of rankingsByLeague[i]) {
+    if (!entry.moveset || entry.moveset.length === 0) continue;
+    const [fast, ...charged] = entry.moveset;
+    const leagueEntry = { fast, charged };
+    const altFast = topByUsage(entry.moves?.fastMoves ?? [], [fast]);
+    const altCharged = topByUsage(entry.moves?.chargedMoves ?? [], charged);
+    if (altFast) leagueEntry.altFast = altFast;
+    if (altCharged) leagueEntry.altCharged = altCharged;
+    (movesets[entry.speciesId] ??= {})[league.key] = leagueEntry;
+  }
+});
+
+const outDir = new URL("../public/data/", import.meta.url);
+await writeFile(new URL("pokemon.min.json", outDir), JSON.stringify(pokemon), "utf8");
+await writeFile(new URL("moves.min.json", outDir), JSON.stringify(moves), "utf8");
+await writeFile(new URL("movesets.min.json", outDir), JSON.stringify(movesets), "utf8");
+
+console.log(`Wrote ${pokemon.length} Pokemon, ${Object.keys(moves).length} moves, ${Object.keys(movesets).length} movesets`);
