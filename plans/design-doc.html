@@ -416,10 +416,24 @@ percentage = statProduct / statProduct(best combo) * 100</code></pre>
   </section>
 
   <section>
-    <span class="sec-num">12 — Next step</span>
+    <span class="sec-num">12 — Evolution navigation</span>
+    <h2>Frillish isn't the point. Jellicent is.</h2>
+    <p>stadiumgaming.gg lets you search a pre-evolution (their example: Frillish) and jump straight to its evolution's ranking — useful because IVs carry over through evolution in Pokemon GO, and most pre-evolution stages are irrelevant to Great/Ultra/Master League (Little Cup, which explicitly wants the base stage, is the exception). Most searches for a baby/basic-stage Pokemon are really "how will this rank once I evolve it," so the evolution should be one click away instead of a second search.</p>
+    <p>PvPoke's <code>gamemaster.json</code> already encodes this per entry — no new data source, no graph we build ourselves:</p>
+    <pre><code>// frillish
+"family": { "id": "FAMILY_FRILLISH", "evolutions": ["jellicent"] }
+// jellicent
+"family": { "id": "FAMILY_FRILLISH", "parent": "frillish" }</code></pre>
+    <p><code>parent</code> is the direct previous stage (absent for a base form); <code>evolutions</code> is a list of direct next stages, so branching families like Eevee's eight eeveelutions fall out for free. Shadow and Mega variants don't leak in: shadow chains are self-contained (never crossing into the normal chain), and Mega forms carry their pre-Mega species' <code>parent</code> rather than appearing in anyone's <code>evolutions</code> list.</p>
+    <p><strong>Data change:</strong> <code>scripts/fetch-gamemaster.mjs</code> additionally captures <code>parent</code> and <code>evolutions</code> per entry — a few more bytes per row, no new fetch.</p>
+    <p><strong>UI:</strong> below the Pokemon search box, "Evolves from: X" / "Evolves into: Y" as clickable chips whenever they apply, hidden entirely for a Pokemon with neither. Clicking a chip re-runs the same species lookup as picking it from the search box — same IVs, same league, new base stats — so hopping from Frillish to Jellicent is one click, not a second search.</p>
+  </section>
+
+  <section>
+    <span class="sec-num">13 — Next step</span>
     <h2>MVP is live</h2>
     <div class="callout">
-      <p>The MVP shipped via PR — search, IVs, league, rank, all client-side. §10 and §11 above are the next iteration on top of it.</p>
+      <p>The MVP shipped via PR — search, IVs, league, rank, all client-side, plus Top 5/Nearby/the rank slider. §12 (evolution navigation) is next up for implementation.</p>
     </div>
   </section>
 

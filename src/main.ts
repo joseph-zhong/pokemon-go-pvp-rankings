@@ -23,9 +23,11 @@ const els = {
   exploreRankLabel: document.getElementById("explore-rank-label") as HTMLElement,
   top5Body: document.getElementById("top5-body") as HTMLElement,
   nearbyBody: document.getElementById("nearby-body") as HTMLElement,
+  evolutionLinks: document.getElementById("evolution-links") as HTMLElement,
 };
 
 let pokemonList: PokemonEntry[] = [];
+let pokemonById = new Map<string, PokemonEntry>();
 let selected: PokemonEntry | null = null;
 // The full 4096-combo ranking for the current species/league/level cap. Only
 // rebuilt on "structural" changes (species, league, best buddy) — never on
@@ -149,9 +151,51 @@ function onQueryChange() {
   render();
 }
 
+function evoGroup(label: string, entries: PokemonEntry[]): HTMLElement {
+  const wrap = document.createElement("span");
+  wrap.className = "evo-group";
+
+  const labelEl = document.createElement("span");
+  labelEl.className = "evo-label";
+  labelEl.textContent = label;
+  wrap.appendChild(labelEl);
+
+  for (const entry of entries) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "evo-chip";
+    btn.textContent = entry.name;
+    btn.addEventListener("click", () => chooseSpecies(entry));
+    wrap.appendChild(btn);
+  }
+  return wrap;
+}
+
+// "Evolves from/into" chips — same IVs, different base stats, one click.
+// See design-doc.md section 12: most searches for a pre-evolution are
+// really about how it ranks once evolved.
+function renderEvolutionLinks(entry: PokemonEntry) {
+  els.evolutionLinks.innerHTML = "";
+
+  const parent = entry.parent ? pokemonById.get(entry.parent) : undefined;
+  if (parent) els.evolutionLinks.appendChild(evoGroup("Evolves from", [parent]));
+
+  const evolutions = (entry.evolutions ?? []).map((id) => pokemonById.get(id)).filter((p): p is PokemonEntry => !!p);
+  if (evolutions.length > 0) els.evolutionLinks.appendChild(evoGroup("Evolves into", evolutions));
+
+  els.evolutionLinks.hidden = els.evolutionLinks.children.length === 0;
+}
+
 function selectPokemon(entry: PokemonEntry) {
   selected = entry;
+  renderEvolutionLinks(entry);
   onStructuralChange();
+}
+
+/** Sets the search box and selects a species — used by the combobox, URL restore, and evolution chips alike. */
+function chooseSpecies(entry: PokemonEntry) {
+  els.pokemonInput.value = entry.name;
+  selectPokemon(entry);
 }
 
 // IV steppers
@@ -196,8 +240,8 @@ createCombobox({
   list: els.pokemonList,
   getOptions: () => pokemonList.map((p) => ({ id: p.id, label: p.name, sublabel: `#${p.dex}` })),
   onSelect: (option) => {
-    const entry = pokemonList.find((p) => p.id === option.id);
-    if (entry) selectPokemon(entry);
+    const entry = pokemonById.get(option.id);
+    if (entry) chooseSpecies(entry);
   },
 });
 
@@ -215,12 +259,10 @@ if (ivParam) {
 
 loadPokemon().then((data) => {
   pokemonList = data;
+  pokemonById = new Map(data.map((p) => [p.id, p]));
   const pokemonParam = params.get("p");
   if (pokemonParam) {
-    const entry = pokemonList.find((p) => p.id === pokemonParam);
-    if (entry) {
-      els.pokemonInput.value = entry.name;
-      selectPokemon(entry);
-    }
+    const entry = pokemonById.get(pokemonParam);
+    if (entry) chooseSpecies(entry);
   }
 });

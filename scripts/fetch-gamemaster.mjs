@@ -24,6 +24,11 @@ const pokemon = gamemaster.pokemon
     atk: p.baseStats.atk,
     def: p.baseStats.def,
     hp: p.baseStats.hp,
+    // Direct previous/next evolution stage(s), straight from PvPoke's family
+    // graph — lets the UI offer "Evolves from/into" links. See
+    // design-doc.md section 12 for why this needs no extra data source.
+    ...(p.family?.parent ? { parent: p.family.parent } : {}),
+    ...(p.family?.evolutions?.length ? { evolutions: p.family.evolutions } : {}),
   }))
   .sort((a, b) => a.dex - b.dex || a.id.localeCompare(b.id));
 

@@ -5,6 +5,10 @@ export interface PokemonEntry {
   atk: number;
   def: number;
   hp: number;
+  /** Species id of the direct previous evolution stage, if any. */
+  parent?: string;
+  /** Species ids of the direct next evolution stage(s), if any. */
+  evolutions?: string[];
 }
 
 let cache: Promise<PokemonEntry[]> | null = null;

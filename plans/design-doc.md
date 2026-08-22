@@ -177,6 +177,25 @@ The flow so far is one-directional: type IVs, read off a rank. Sometimes the use
 
 **Performance:** dragging fires many events per second, but it never recomputes the 4096-combo ranking — that only happens when species, league, or level cap changes (§10's `rankAllIvs`). A drag tick is a single array index plus a re-render, comfortably sub-millisecond.
 
-## 12. Next step
+## 12. Evolution navigation
 
-MVP is live (see the open PR). These two features (§10, §11) are the next iteration on top of it.
+stadiumgaming.gg lets you search a pre-evolution (their example: Frillish) and jump straight to its evolution's ranking — useful because IVs carry over through evolution in Pokemon GO, and most pre-evolution stages are irrelevant to Great/Ultra/Master League (Little Cup, which explicitly wants the base stage, is the exception). Practically, most searches for a baby/basic-stage Pokemon are really "how will this rank once I evolve it," so the evolution should be one click away instead of a second search.
+
+PvPoke's `gamemaster.json` already encodes this per entry — no new data source, no graph we have to build ourselves:
+
+```json
+// frillish
+"family": { "id": "FAMILY_FRILLISH", "evolutions": ["jellicent"] }
+// jellicent
+"family": { "id": "FAMILY_FRILLISH", "parent": "frillish" }
+```
+
+`parent` is the direct previous stage (absent for a base form); `evolutions` is the list of direct next stages (a list, not a single value, so branching families like Eevee's eight eeveelutions fall out for free). Shadow and Mega variants don't leak into this: shadow chains are self-contained (`bulbasaur_shadow → ivysaur_shadow → venusaur_shadow`, never crossing into the normal chain), and Mega forms carry their pre-Mega species' `parent` rather than appearing inside anyone's `evolutions` list, so they never show up as a suggested evolution.
+
+**Data change:** `scripts/fetch-gamemaster.mjs` additionally captures `parent` (species id or omitted) and `evolutions` (species id array or omitted) per entry — a few more bytes per row, no new fetch, no new source.
+
+**UI:** below the Pokemon search box, show "Evolves from: X" / "Evolves into: Y" as clickable chips whenever they apply (hidden entirely for a Pokemon with neither, e.g. a fully-evolved solo species). Clicking a chip re-runs the same species lookup as picking it from the search box — same IVs, same league, new base stats — so hopping from Frillish to Jellicent is one click, not a second search.
+
+## 13. Next step
+
+MVP is live (see the open PR). §10-12 are iteration on top of it; §12 (evolution navigation) is next up for implementation.
