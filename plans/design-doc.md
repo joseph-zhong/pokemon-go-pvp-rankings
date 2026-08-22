@@ -152,10 +152,50 @@ pokemon-go-pvp-rankings/
 | Data payload | Varies | ~200–400KB gzip, once, cached at edge |
 | Time to interactive | Often multiple seconds | Sub-second on a static edge-cached page |
 
+*Measured in the shipped MVP: 5.6KB gzipped JS+CSS, 25KB gzipped data, one HTML request, zero third-party requests.*
+
 ## 9. License & attribution
 
 PvPoke's repository is MIT licensed, so reusing `gamemaster.json` (and referencing their ranking approach) is allowed with attribution — keep their copyright notice in this repo's README/about section. All of this data ultimately originates from Niantic's game files, so it's worth a small "not affiliated with Niantic" disclaimer on the site itself, same as PvPoke carries.
 
-## 10. Next step
+## 10. Top 5 & nearby ranks
 
-This doc covers the plan; nothing is scaffolded yet. Next concrete step, if this direction looks right: initialize the Vite + TS project, write `cpm.ts`/`rank.ts` with tests against a couple of known PvPoke rankings (e.g. verify Azumarill Great League rank 1 IVs match), then build the single-page UI on top.
+stadiumgaming.gg's rank checker shows a top-10 list alongside the single rank — useful context that a bare "#26 / 4096" doesn't give you. We can add this for free: `rankIvs` already builds and sorts the full 4096-combo array internally to find one rank, then throws the rest away. Exposing that array instead of discarding it costs nothing extra.
+
+**API change:** replace the single-result `rankIvs` with `rankAllIvs(base, league, levelCap)`, returning all 4096 combos sorted and ranked (`{ ivs, level, cp, statProduct, percentage, rank }[]`). A `findCombo(all, ivs)` helper looks up one entry by IVs. This becomes the one source of truth for the query result, the top-5 list, the nearby list, and the rank slider below (§11) — computed once per species/league/level-cap, not once per feature.
+
+- **Top 5:** `all.slice(0, 5)`.
+- **Nearby:** a window centered on the query's rank — 5 ranks better and 5 ranks worse (11 rows including the query), clipped at the #1 / #4096 boundary. Labeled "Nearby ranks" so the exact window size doesn't need to be guessed by the reader.
+
+Both lists are rendered as small tables (rank, IVs, level, CP, %), and each row is clickable — clicking loads those IVs into the form. That makes browsing the leaderboard double as a way to explore "what if I had these IVs instead."
+
+## 11. Rank → IVs explorer (reverse lookup)
+
+The flow so far is one-directional: type IVs, read off a rank. Sometimes the useful question is the other way around — "what IVs would land around rank #50?" Since `rankAllIvs` returns a rank-sorted array, that reverse lookup is just array indexing: `all[rank - 1]`. No new math, only a new way to read the same table.
+
+**UI:** a labeled range slider from "Best (#1)" to "Worst (#4096)". Dragging it doesn't open a separate preview — it sets the actual IV fields to whatever combo sits at that rank, the same as typing IVs directly or clicking a Top-5/Nearby row would. One state, three ways to set it. That keeps the rank number, the top-5 list, and the nearby list always in sync with whatever's currently being explored, instead of introducing a second "preview" state to keep consistent with the real query.
+
+**Performance:** dragging fires many events per second, but it never recomputes the 4096-combo ranking — that only happens when species, league, or level cap changes (§10's `rankAllIvs`). A drag tick is a single array index plus a re-render, comfortably sub-millisecond.
+
+## 12. Evolution navigation
+
+stadiumgaming.gg lets you search a pre-evolution (their example: Frillish) and jump straight to its evolution's ranking — useful because IVs carry over through evolution in Pokemon GO, and most pre-evolution stages are irrelevant to Great/Ultra/Master League (Little Cup, which explicitly wants the base stage, is the exception). Practically, most searches for a baby/basic-stage Pokemon are really "how will this rank once I evolve it," so the evolution should be one click away instead of a second search.
+
+PvPoke's `gamemaster.json` already encodes this per entry — no new data source, no graph we have to build ourselves:
+
+```json
+// frillish
+"family": { "id": "FAMILY_FRILLISH", "evolutions": ["jellicent"] }
+// jellicent
+"family": { "id": "FAMILY_FRILLISH", "parent": "frillish" }
+```
+
+`parent` is the direct previous stage (absent for a base form); `evolutions` is the list of direct next stages (a list, not a single value, so branching families like Eevee's eight eeveelutions fall out for free). Shadow and Mega variants don't leak into this: shadow chains are self-contained (`bulbasaur_shadow → ivysaur_shadow → venusaur_shadow`, never crossing into the normal chain), and Mega forms carry their pre-Mega species' `parent` rather than appearing inside anyone's `evolutions` list, so they never show up as a suggested evolution.
+
+**Data change:** `scripts/fetch-gamemaster.mjs` additionally captures `parent` (species id or omitted) and `evolutions` (species id array or omitted) per entry — a few more bytes per row, no new fetch, no new source.
+
+**UI:** below the Pokemon search box, show "Evolves from: X" / "Evolves into: Y" as clickable chips whenever they apply (hidden entirely for a Pokemon with neither, e.g. a fully-evolved solo species). Clicking a chip re-runs the same species lookup as picking it from the search box — same IVs, same league, new base stats — so hopping from Frillish to Jellicent is one click, not a second search.
+
+## 13. Next step
+
+MVP is live (see the open PR). §10-12 are iteration on top of it; §12 (evolution navigation) is next up for implementation.

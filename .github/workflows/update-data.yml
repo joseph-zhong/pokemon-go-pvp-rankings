@@ -1,0 +1,29 @@
+name: Update Pokemon data
+
+on:
+  schedule:
+    # Daily, 09:00 UTC. Base stats and new species change infrequently; see
+    # design-doc.md section 3 for the full update-cadence rationale.
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/fetch-gamemaster.mjs
+      - uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "data: refresh pokemon.min.json from pvpoke/pvpoke"
+          title: "Daily Pokemon data refresh"
+          body: Automated refresh of `public/data/pokemon.min.json` from [pvpoke/pvpoke](https://github.com/pvpoke/pvpoke)'s `gamemaster.json`. Review the diff before merging — new/changed species only.
+          branch: data/auto-refresh
+          delete-branch: true
