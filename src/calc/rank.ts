@@ -68,37 +68,48 @@ export function statProduct(base: BaseStats, ivs: Ivs, level: number): number {
   return stats.atk * stats.def * stats.hp;
 }
 
-export interface RankResult {
+export interface RankedCombo {
+  ivs: Ivs;
   level: number;
   cp: number;
   statProduct: number;
-  bestStatProduct: number;
   percentage: number; // 0-100, this combo's stat product relative to the league's best
   rank: number; // 1-indexed, 1 is best
-  total: number; // always 4096 (16^3)
 }
 
 /**
- * Ranks one IV combination against all 4096 possible combinations for a
- * given species and league. Mirrors PvPoke's ranking method (see
- * design-doc.md section 2): for every combo, find the highest level under
- * the CP cap, sort by stat product (Atk * Def * HP) descending.
+ * Ranks all 4096 possible IV combinations for a given species and league.
+ * Mirrors PvPoke's ranking method (see design-doc.md section 2): for every
+ * combo, find the highest level under the CP cap, sort by stat product
+ * (Atk * Def * HP) descending.
  *
  * We intentionally don't restrict the IV floor for legendaries/shadows the
  * way PvPoke's "best IV to catch" tool does — this checker ranks whatever
  * IVs a Pokemon actually has, against the full 0-15 range, which is what
  * every "rank X / 4096" display (including the one this project mirrors)
  * shows to players.
+ *
+ * This only needs recomputing when species, league, or level cap changes —
+ * the result is the single source of truth for a query's own rank, the
+ * top-5 list, the nearby-ranks list, and the rank explorer slider (see
+ * design-doc.md section 10-11), all without redoing the 4096-combo sort.
  */
-export function rankIvs(base: BaseStats, ivs: Ivs, league: League, levelCap = MAX_LEVEL): RankResult {
-  const combos: { ivs: Ivs; statProduct: number }[] = [];
+export function rankAllIvs(base: BaseStats, league: League, levelCap = MAX_LEVEL): RankedCombo[] {
+  const combos: RankedCombo[] = [];
 
   for (let hp = 15; hp >= 0; hp--) {
     for (let def = 15; def >= 0; def--) {
       for (let atk = 15; atk >= 0; atk--) {
-        const comboIvs: Ivs = { atk, def, hp };
-        const level = bestLevelForCap(base, comboIvs, league.cpCap, levelCap);
-        combos.push({ ivs: comboIvs, statProduct: statProduct(base, comboIvs, level) });
+        const ivs: Ivs = { atk, def, hp };
+        const level = bestLevelForCap(base, ivs, league.cpCap, levelCap);
+        combos.push({
+          ivs,
+          level,
+          cp: calcCp(base, ivs, level),
+          statProduct: statProduct(base, ivs, level),
+          percentage: 0, // filled in below, once we know the best
+          rank: 0,
+        });
       }
     }
   }
@@ -107,18 +118,17 @@ export function rankIvs(base: BaseStats, ivs: Ivs, league: League, levelCap = MA
   // ties, matching PvPoke's behavior.
   combos.sort((a, b) => b.statProduct - a.statProduct);
 
-  const bestStatProduct = combos[0]!.statProduct;
-  const rank = combos.findIndex((c) => c.ivs.atk === ivs.atk && c.ivs.def === ivs.def && c.ivs.hp === ivs.hp) + 1;
-  const level = bestLevelForCap(base, ivs, league.cpCap, levelCap);
-  const sp = statProduct(base, ivs, level);
+  const best = combos[0]!.statProduct;
+  combos.forEach((combo, i) => {
+    combo.rank = i + 1;
+    combo.percentage = (combo.statProduct / best) * 100;
+  });
 
-  return {
-    level,
-    cp: calcCp(base, ivs, level),
-    statProduct: sp,
-    bestStatProduct,
-    percentage: (sp / bestStatProduct) * 100,
-    rank,
-    total: combos.length,
-  };
+  return combos;
+}
+
+export function findCombo(all: readonly RankedCombo[], ivs: Ivs): RankedCombo {
+  const combo = all.find((c) => c.ivs.atk === ivs.atk && c.ivs.def === ivs.def && c.ivs.hp === ivs.hp);
+  if (!combo) throw new Error(`No combo found for IVs ${ivs.atk}/${ivs.def}/${ivs.hp}`);
+  return combo;
 }

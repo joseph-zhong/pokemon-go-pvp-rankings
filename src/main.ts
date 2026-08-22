@@ -1,5 +1,5 @@
 import "./style.css";
-import { leagueById, rankIvs, type RankResult } from "./calc/rank";
+import { findCombo, leagueById, rankAllIvs, type RankedCombo } from "./calc/rank";
 import { loadPokemon, type PokemonEntry } from "./data/pokemon";
 import { createCombobox } from "./ui/combobox";
 import { createIvStepper, type IvStepperHandle } from "./ui/ivStepper";
@@ -19,14 +19,29 @@ const els = {
   cp: document.getElementById("result-cp") as HTMLElement,
   sp: document.getElementById("result-sp") as HTMLElement,
   pct: document.getElementById("result-pct") as HTMLElement,
+  rankSlider: document.getElementById("rank-slider") as HTMLInputElement,
+  exploreRankLabel: document.getElementById("explore-rank-label") as HTMLElement,
+  top5Body: document.getElementById("top5-body") as HTMLElement,
+  nearbyBody: document.getElementById("nearby-body") as HTMLElement,
 };
 
 let pokemonList: PokemonEntry[] = [];
 let selected: PokemonEntry | null = null;
+// The full 4096-combo ranking for the current species/league/level cap. Only
+// rebuilt on "structural" changes (species, league, best buddy) — never on
+// an IV edit, row click, or slider drag, which just look a combo up in it.
+let currentRankings: RankedCombo[] = [];
 const steppers: Record<"atk" | "def" | "hp", IvStepperHandle> = {} as never;
 
 function currentIvs() {
   return { atk: steppers.atk.get(), def: steppers.def.get(), hp: steppers.hp.get() };
+}
+
+function applyCombo(combo: RankedCombo) {
+  steppers.atk.set(combo.ivs.atk);
+  steppers.def.set(combo.ivs.def);
+  steppers.hp.set(combo.ivs.hp);
+  onQueryChange();
 }
 
 // Percentage tiers are a simple, commonly used heuristic for "how good is
@@ -37,20 +52,70 @@ function tierFor(percentage: number): { label: string; tier: "great" | "good" | 
   return { label: "Fair", tier: "ok" };
 }
 
-function renderResult(result: RankResult) {
+function ivsLabel(ivs: { atk: number; def: number; hp: number }): string {
+  return `${ivs.atk}/${ivs.def}/${ivs.hp}`;
+}
+
+function renderRow(combo: RankedCombo, isCurrent: boolean): HTMLTableRowElement {
+  const tr = document.createElement("tr");
+  if (isCurrent) tr.className = "current-row";
+  tr.tabIndex = 0;
+  const cells = [`#${combo.rank}`, ivsLabel(combo.ivs), String(combo.level), combo.cp.toLocaleString(), `${combo.percentage.toFixed(1)}%`];
+  for (const text of cells) {
+    const td = document.createElement("td");
+    td.textContent = text;
+    tr.appendChild(td);
+  }
+  tr.addEventListener("click", () => applyCombo(combo));
+  tr.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      applyCombo(combo);
+    }
+  });
+  return tr;
+}
+
+function renderTable(body: HTMLElement, combos: RankedCombo[], currentRank: number) {
+  body.innerHTML = "";
+  for (const combo of combos) {
+    body.appendChild(renderRow(combo, combo.rank === currentRank));
+  }
+}
+
+const NEARBY_RADIUS = 5;
+
+function render() {
+  if (!selected || currentRankings.length === 0) return;
+
+  const target = findCombo(currentRankings, currentIvs());
+  const total = currentRankings.length;
+
   els.result.hidden = false;
   els.emptyState.hidden = true;
 
-  els.rankNum.textContent = `#${result.rank.toLocaleString()}`;
-  els.level.textContent = String(result.level);
-  els.cp.textContent = result.cp.toLocaleString();
-  els.sp.textContent = Math.round(result.statProduct).toLocaleString();
-  els.pct.textContent = `${result.percentage.toFixed(1)}%`;
-  els.barFill.style.width = `${result.percentage}%`;
+  els.rankNum.textContent = `#${target.rank.toLocaleString()}`;
+  els.level.textContent = String(target.level);
+  els.cp.textContent = target.cp.toLocaleString();
+  els.sp.textContent = Math.round(target.statProduct).toLocaleString();
+  els.pct.textContent = `${target.percentage.toFixed(1)}%`;
+  els.barFill.style.width = `${target.percentage}%`;
 
-  const { label, tier } = tierFor(result.percentage);
+  const { label, tier } = tierFor(target.percentage);
   els.tier.textContent = label;
   els.tier.dataset.tier = tier;
+
+  els.rankSlider.max = String(total);
+  els.rankSlider.value = String(target.rank);
+  els.exploreRankLabel.textContent = `#${target.rank.toLocaleString()} / ${total.toLocaleString()}`;
+
+  renderTable(els.top5Body, currentRankings.slice(0, 5), target.rank);
+
+  const start = Math.max(0, target.rank - 1 - NEARBY_RADIUS);
+  const end = Math.min(total, target.rank + NEARBY_RADIUS);
+  renderTable(els.nearbyBody, currentRankings.slice(start, end), target.rank);
+
+  updateUrl();
 }
 
 function updateUrl() {
@@ -65,7 +130,8 @@ function updateUrl() {
   history.replaceState(null, "", `?${params.toString()}`);
 }
 
-function recompute() {
+/** Recompute the full ranking table — call only when species/league/level-cap change. */
+function onStructuralChange() {
   if (!selected) {
     els.result.hidden = true;
     els.emptyState.hidden = false;
@@ -73,20 +139,25 @@ function recompute() {
   }
   const league = leagueById(els.leagueSelect.value);
   const levelCap = els.bestBuddy.checked ? 51 : 50;
-  const result = rankIvs(selected, currentIvs(), league, levelCap);
-  renderResult(result);
-  updateUrl();
+  currentRankings = rankAllIvs(selected, league, levelCap);
+  render();
+}
+
+/** Re-render against the existing ranking table — call on IV edits, row clicks, slider drags. */
+function onQueryChange() {
+  if (!selected) return;
+  render();
 }
 
 function selectPokemon(entry: PokemonEntry) {
   selected = entry;
-  recompute();
+  onStructuralChange();
 }
 
 // IV steppers
 (["atk", "def", "hp"] as const).forEach((stat) => {
   const container = document.querySelector<HTMLElement>(`.iv-stepper[data-iv="${stat}"]`)!;
-  steppers[stat] = createIvStepper(container, recompute);
+  steppers[stat] = createIvStepper(container, onQueryChange);
 });
 
 // Paste support: "12/14/15"-style strings (from screenshots / IV scanners)
@@ -102,14 +173,22 @@ for (const stat of ["atk", "def", "hp"] as const) {
     steppers.atk.set(Number(atk));
     steppers.def.set(Number(def));
     steppers.hp.set(Number(hp));
-    recompute();
+    onQueryChange();
   });
 }
 
-// League + Best Buddy
-els.leagueSelect.addEventListener("change", recompute);
-els.bestBuddy.addEventListener("change", recompute);
+// League + Best Buddy change the CP cap / level cap, so they need a full
+// re-rank, not just a lookup.
+els.leagueSelect.addEventListener("change", onStructuralChange);
+els.bestBuddy.addEventListener("change", onStructuralChange);
 els.form.addEventListener("submit", (e) => e.preventDefault());
+
+// Rank explorer slider: dragging it is just another way to pick a combo,
+// same as typing IVs or clicking a table row — it sets the real query state.
+els.rankSlider.addEventListener("input", () => {
+  const combo = currentRankings[Number(els.rankSlider.value) - 1];
+  if (combo) applyCombo(combo);
+});
 
 // Pokemon combobox
 createCombobox({

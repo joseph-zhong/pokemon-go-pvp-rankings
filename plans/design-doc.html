@@ -384,6 +384,7 @@ percentage = statProduct / statProduct(best combo) * 100</code></pre>
         </tbody>
       </table>
     </div>
+    <p style="color: var(--ink-soft); font-size: 14px; margin-top: 4px;"><em>Measured in the shipped MVP: 5.6KB gzipped JS+CSS, 25KB gzipped data, one HTML request, zero third-party requests.</em></p>
   </section>
 
   <section>
@@ -393,10 +394,32 @@ percentage = statProduct / statProduct(best combo) * 100</code></pre>
   </section>
 
   <section>
-    <span class="sec-num">10 — Next step</span>
-    <h2>Nothing is scaffolded yet</h2>
+    <span class="sec-num">10 — Top 5 &amp; nearby ranks</span>
+    <h2>Context beyond a single number</h2>
+    <p>stadiumgaming.gg shows a top-10 list alongside the single rank — useful context that a bare "#26 / 4096" doesn't give you. This is free to add: <code>rankIvs</code> already builds and sorts the full 4,096-combo array internally to find one rank, then throws the rest away. Exposing that array instead of discarding it costs nothing extra.</p>
+    <p><strong>API change:</strong> replace the single-result <code>rankIvs</code> with <code>rankAllIvs(base, league, levelCap)</code>, returning all 4,096 combos sorted and ranked. A <code>findCombo(all, ivs)</code> helper looks up one entry by IVs. This becomes the one source of truth for the query result, the top-5 list, the nearby list, and the rank slider below (§11) — computed once per species/league/level-cap, not once per feature.</p>
+    <ul>
+      <li><strong>Top 5:</strong> <code>all.slice(0, 5)</code>.</li>
+      <li><strong>Nearby:</strong> a window centered on the query's rank — 5 ranks better and 5 ranks worse (11 rows including the query), clipped at the #1 / #4096 boundary.</li>
+    </ul>
+    <p>Both render as small tables (rank, IVs, level, CP, %), and each row is clickable — clicking loads those IVs into the form. Browsing the leaderboard doubles as a way to explore "what if I had these IVs instead."</p>
+  </section>
+
+  <section>
+    <span class="sec-num">11 — Rank → IVs explorer</span>
+    <h2>Reverse lookup, not just forward</h2>
+    <p>The flow so far is one-directional: type IVs, read off a rank. Sometimes the useful question runs the other way — "what IVs would land around rank #50?" Since <code>rankAllIvs</code> returns a rank-sorted array, that reverse lookup is just indexing: <code>all[rank - 1]</code>. No new math, only a new way to read the same table.</p>
     <div class="callout">
-      <p>If this direction looks right, the next concrete step is: initialize the Vite + TS project, write <code>cpm.ts</code> / <code>rank.ts</code> with tests against a couple of known PvPoke rankings (e.g. verify Azumarill's Great League rank-1 IV spread matches), then build the single-page UI on top.</p>
+      <p><strong>UI:</strong> a labeled range slider from "Best (#1)" to "Worst (#4096)". Dragging it doesn't open a separate preview — it sets the actual IV fields to whatever combo sits at that rank, the same as typing IVs directly or clicking a Top-5/Nearby row would. One state, three ways to set it, so the rank number, the top-5 list, and the nearby list always stay in sync with whatever's being explored.</p>
+    </div>
+    <p><strong>Performance:</strong> dragging fires many events per second, but it never recomputes the 4,096-combo ranking — that only happens when species, league, or level cap changes. A drag tick is a single array index plus a re-render, comfortably sub-millisecond.</p>
+  </section>
+
+  <section>
+    <span class="sec-num">12 — Next step</span>
+    <h2>MVP is live</h2>
+    <div class="callout">
+      <p>The MVP shipped via PR — search, IVs, league, rank, all client-side. §10 and §11 above are the next iteration on top of it.</p>
     </div>
   </section>
 

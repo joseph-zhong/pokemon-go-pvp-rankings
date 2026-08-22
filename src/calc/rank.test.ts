@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cpmForLevel } from "./cpm";
-import { bestLevelForCap, calcCp, leagueById, rankIvs } from "./rank";
+import { bestLevelForCap, calcCp, findCombo, leagueById, rankAllIvs } from "./rank";
 
 // Reference values below were computed with an independent Python
 // implementation of the same formulas against real base stats pulled from
@@ -37,31 +37,42 @@ describe("bestLevelForCap", () => {
   });
 });
 
-describe("rankIvs", () => {
+describe("rankAllIvs / findCombo", () => {
   it("ranks Azumarill 0/15/15 as #1 in Great League", () => {
-    const result = rankIvs(AZUMARILL, { atk: 0, def: 15, hp: 15 }, leagueById("great"));
-    expect(result.rank).toBe(1);
-    expect(result.total).toBe(4096);
-    expect(result.percentage).toBeCloseTo(100, 5);
-    expect(result.level).toBe(45.5);
-    expect(result.cp).toBe(1499);
+    const all = rankAllIvs(AZUMARILL, leagueById("great"));
+    expect(all).toHaveLength(4096);
+    const combo = findCombo(all, { atk: 0, def: 15, hp: 15 });
+    expect(combo.rank).toBe(1);
+    expect(combo.percentage).toBeCloseTo(100, 5);
+    expect(combo.level).toBe(45.5);
+    expect(combo.cp).toBe(1499);
+    // Rank #1 must also be the first (best) entry in the sorted array.
+    expect(all[0]).toBe(combo);
   });
 
   it("ranks Azumarill 15/15/15 far lower in Great League (low-attack bulk beats max IVs under a CP cap)", () => {
-    const result = rankIvs(AZUMARILL, { atk: 15, def: 15, hp: 15 }, leagueById("great"));
-    expect(result.rank).toBe(2558);
-    expect(result.percentage).toBeCloseTo(93.732, 2);
+    const all = rankAllIvs(AZUMARILL, leagueById("great"));
+    const combo = findCombo(all, { atk: 15, def: 15, hp: 15 });
+    expect(combo.rank).toBe(2558);
+    expect(combo.percentage).toBeCloseTo(93.732, 2);
   });
 
   it("ranks Registeel 0/15/15 near the top in Ultra League", () => {
-    const result = rankIvs(REGISTEEL, { atk: 0, def: 15, hp: 15 }, leagueById("ultra"));
-    expect(result.rank).toBe(26);
-    expect(result.cp).toBe(2489);
+    const all = rankAllIvs(REGISTEEL, leagueById("ultra"));
+    const combo = findCombo(all, { atk: 0, def: 15, hp: 15 });
+    expect(combo.rank).toBe(26);
+    expect(combo.cp).toBe(2489);
   });
 
   it("always ranks 15/15/15 as #1 in Master League, since there's no CP cap to trade off against", () => {
-    const result = rankIvs(AZUMARILL, { atk: 15, def: 15, hp: 15 }, leagueById("master"));
-    expect(result.rank).toBe(1);
-    expect(result.level).toBe(51);
+    const all = rankAllIvs(AZUMARILL, leagueById("master"));
+    const combo = findCombo(all, { atk: 15, def: 15, hp: 15 });
+    expect(combo.rank).toBe(1);
+    expect(combo.level).toBe(51);
+  });
+
+  it("keeps ranks contiguous from 1 to 4096 in sorted order", () => {
+    const all = rankAllIvs(AZUMARILL, leagueById("great"));
+    all.forEach((combo, i) => expect(combo.rank).toBe(i + 1));
   });
 });
