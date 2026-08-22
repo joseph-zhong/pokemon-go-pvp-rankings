@@ -6,14 +6,14 @@
 // truth for Pokemon GO PvP data, and (for movesets) the output of their
 // battle simulator rather than something we compute ourselves. See
 // design-doc.md sections 3 and 13 for why.
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 
 const RAW_BASE = "https://raw.githubusercontent.com/pvpoke/pvpoke/master/src/data";
 const GAMEMASTER_URL = `${RAW_BASE}/gamemaster.json`;
 const LEAGUES = [
-  { key: "great", cp: 1500 },
-  { key: "ultra", cp: 2500 },
-  { key: "master", cp: 10000 },
+  { key: "great", title: "Great League", cp: 1500 },
+  { key: "ultra", title: "Ultra League", cp: 2500 },
+  { key: "master", title: "Master League", cp: 10000 },
 ];
 
 async function fetchJson(url) {
@@ -74,9 +74,61 @@ LEAGUES.forEach((league, i) => {
   }
 });
 
+// Team builder (/pvp/) data: the 3 standard leagues plus whatever cups are
+// currently rotating, discovered from gamemaster.json rather than named in
+// code — see plans/pvp/design-doc.md section 1. "custom" isn't a real
+// fetchable cup (no static rankings file), so it's excluded.
+const discoveredCups = [];
+const seenKeys = new Set(LEAGUES.map((l) => l.key));
+for (const format of gamemaster.formats) {
+  if (!format.showFormat || format.hideRankings || !format.cup) continue;
+  if (format.cup === "custom" || format.cup === "all" || seenKeys.has(format.cup)) continue;
+  seenKeys.add(format.cup);
+  discoveredCups.push({ key: format.cup, title: format.title, cup: format.cup, cp: format.cp });
+}
+
+const teamLeagues = [...LEAGUES.map((l) => ({ ...l, cup: "all" })), ...discoveredCups];
+
+// Reuse the "all"-cup rankings already fetched above for the 3 standard
+// leagues instead of re-fetching identical data; only discovered cups need
+// a fresh request. A cup occasionally missing its rankings file shouldn't
+// take down the whole script.
+const cupRankings = await Promise.all(
+  discoveredCups.map(async (c) => {
+    try {
+      return await fetchJson(`${RAW_BASE}/rankings/${c.cup}/overall/rankings-${c.cp}.json`);
+    } catch (err) {
+      console.warn(`Skipping cup ${c.key}: ${err.message}`);
+      return null;
+    }
+  }),
+);
+
 const outDir = new URL("../public/data/", import.meta.url);
+await mkdir(new URL("teams/", outDir), { recursive: true });
+
+const leaguesCatalog = [];
+for (let i = 0; i < teamLeagues.length; i++) {
+  const league = teamLeagues[i];
+  const rankings = i < LEAGUES.length ? rankingsByLeague[i] : cupRankings[i - LEAGUES.length];
+  if (!rankings) continue;
+
+  const team = {};
+  for (const entry of rankings) {
+    team[entry.speciesId] = {
+      score: entry.score,
+      counters: (entry.counters ?? []).map((c) => c.opponent),
+    };
+  }
+  await writeFile(new URL(`teams/${league.key}.min.json`, outDir), JSON.stringify(team), "utf8");
+  leaguesCatalog.push({ key: league.key, title: league.title, cp: league.cp });
+}
+
 await writeFile(new URL("pokemon.min.json", outDir), JSON.stringify(pokemon), "utf8");
 await writeFile(new URL("moves.min.json", outDir), JSON.stringify(moves), "utf8");
 await writeFile(new URL("movesets.min.json", outDir), JSON.stringify(movesets), "utf8");
+await writeFile(new URL("leagues.min.json", outDir), JSON.stringify(leaguesCatalog), "utf8");
 
-console.log(`Wrote ${pokemon.length} Pokemon, ${Object.keys(moves).length} moves, ${Object.keys(movesets).length} movesets`);
+console.log(
+  `Wrote ${pokemon.length} Pokemon, ${Object.keys(moves).length} moves, ${Object.keys(movesets).length} movesets, ${leaguesCatalog.length} team leagues`,
+);

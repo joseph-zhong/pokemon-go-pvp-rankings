@@ -8,23 +8,86 @@
       name="description"
       content="Suggested Pokemon GO PvP teams for Great League, Ultra League, Master League, and current meta cups."
     />
+    <link rel="preload" href="/data/pokemon.min.json" as="fetch" crossorigin />
+    <link rel="preload" href="/data/leagues.min.json" as="fetch" crossorigin />
   </head>
   <body>
     <main class="page">
       <header class="page-head">
         <a class="page-nav-back" href="/">&larr; Tools</a>
         <h1>Team Builder</h1>
-        <p class="page-sub">Coming soon — see the design doc for the plan.</p>
+        <p class="page-sub">A suggested team, plus your own picks — built from PvPoke's battle-sim rankings.</p>
       </header>
 
-      <div class="card">
-        <p style="margin: 0; color: var(--ink-soft); font-size: 14px">
-          Suggested teams for Great League, Ultra League, Master League, and current meta cups (e.g. Scroll Cup),
-          built from
-          <a href="https://github.com/pvpoke/pvpoke">pvpoke/pvpoke</a>'s battle-sim rankings the same way
-          <a href="/ranks/">the rank checker</a> already sources its move recommendations.
-        </p>
-      </div>
+      <form id="form" class="card" autocomplete="off">
+        <div class="field">
+          <label for="league-select">League / Cup</label>
+          <select id="league-select"></select>
+        </div>
+      </form>
+
+      <section id="result" class="card" hidden>
+        <div class="team-slots-head">
+          <h2 class="rank-tables-title">Your team</h2>
+          <button type="button" id="regenerate-btn" class="chip-btn">Regenerate suggestion</button>
+        </div>
+
+        <div id="team-slots" class="team-slots">
+          <div class="team-slot">
+            <label for="slot-0-input">Pokemon 1</label>
+            <div class="combobox" id="slot-0-combobox">
+              <input
+                id="slot-0-input"
+                type="text"
+                role="combobox"
+                aria-expanded="false"
+                aria-autocomplete="list"
+                aria-controls="slot-0-listbox"
+                placeholder="Search Pokemon…"
+                autocomplete="off"
+              />
+              <ul id="slot-0-listbox" class="combobox-list" role="listbox" hidden></ul>
+            </div>
+            <p class="team-slot-info" id="slot-0-info"></p>
+          </div>
+          <div class="team-slot">
+            <label for="slot-1-input">Pokemon 2</label>
+            <div class="combobox" id="slot-1-combobox">
+              <input
+                id="slot-1-input"
+                type="text"
+                role="combobox"
+                aria-expanded="false"
+                aria-autocomplete="list"
+                aria-controls="slot-1-listbox"
+                placeholder="Search Pokemon…"
+                autocomplete="off"
+              />
+              <ul id="slot-1-listbox" class="combobox-list" role="listbox" hidden></ul>
+            </div>
+            <p class="team-slot-info" id="slot-1-info"></p>
+          </div>
+          <div class="team-slot">
+            <label for="slot-2-input">Pokemon 3</label>
+            <div class="combobox" id="slot-2-combobox">
+              <input
+                id="slot-2-input"
+                type="text"
+                role="combobox"
+                aria-expanded="false"
+                aria-autocomplete="list"
+                aria-controls="slot-2-listbox"
+                placeholder="Search Pokemon…"
+                autocomplete="off"
+              />
+              <ul id="slot-2-listbox" class="combobox-list" role="listbox" hidden></ul>
+            </div>
+            <p class="team-slot-info" id="slot-2-info"></p>
+          </div>
+        </div>
+      </section>
+
+      <p id="empty-state" class="empty-state">Loading…</p>
 
       <footer class="page-foot">
         Data: <a href="https://github.com/pvpoke/pvpoke">pvpoke/pvpoke</a> (MIT). Not affiliated with Niantic.

@@ -48,8 +48,10 @@ This extends the existing `createCombobox` component with an optional per-option
 
 ## 5. Data additions
 
-New per-league-or-cup file, `public/data/teams/<key>.min.json` (`key` = `great`/`ultra`/`master`/the cup's slug), each: `{ speciesId: { rating, counters: speciesId[] } }[]`, sorted by rating descending — small (only eligible species, not all 1600) and reuses the fetch pattern from `movesets.min.json`.
+New per-league-or-cup file, `public/data/teams/<key>.min.json` (`key` = `great`/`ultra`/`master`/the cup's slug): `Record<speciesId, { score: number; counters: string[] }>` — small (only eligible species, not all 1600) and reuses the fetch pattern from `movesets.min.json`. Uses `score` (PvPoke's own 0-100 rank score) rather than the raw `rating` field named in the original sketch above — `score` is what actually determines PvPoke's own ordering, `rating` is closer to an internal battle-sim Elo number.
 
-## 6. Next step
+Also new: `public/data/leagues.min.json`, the catalog from §1 (`{ key, title, cp }[]`) driving the league/cup `<select>`.
 
-Not started. Once this direction is confirmed: extend `fetch-gamemaster.mjs` for §1/§2/§5, implement the greedy suggester (§3) as a pure function (testable the same way `rank.ts` is), then the `/pvp/` UI (league/cup selector, 3 team slots, the extended combobox from §4).
+## 6. Status: implemented
+
+Live at `/pvp/`. `src/calc/team.ts` (`suggestTeam`, tested against a synthetic pool with known overlapping counters), `src/data/teams.ts` (`loadLeagues`/`loadTeamPool`, per-league lazy-loaded and cached), `src/ui/combobox.ts` extended with `disabledReason` (keyboard nav skips disabled entries; verified in Chromium that "not eligible" species render dimmed in the Scroll Cup search results rather than being hidden). 11 leagues discovered as of this writing (3 standard + 8 currently-active cups) — that count will drift over time by design, not a bug.
