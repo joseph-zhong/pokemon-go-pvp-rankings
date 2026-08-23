@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { suggestTeam, type TeamCandidate } from "./team";
+import { suggestTeam, suggestTeams, type TeamCandidate } from "./team";
 
 describe("suggestTeam", () => {
   it("returns an empty team for an empty pool", () => {
@@ -49,5 +49,43 @@ describe("suggestTeam", () => {
       counters: [],
     }));
     expect(suggestTeam(pool)).toHaveLength(3);
+  });
+});
+
+describe("suggestTeams", () => {
+  it("seeds each alternative from a different overall rank, not leftovers from the previous team", () => {
+    const pool: TeamCandidate[] = Array.from({ length: 6 }, (_, i) => ({
+      id: `p${i}`,
+      score: 100 - i, // p0 best, p5 worst
+      counters: [],
+    }));
+    const teams = suggestTeams(pool, 3, 3);
+    expect(teams).toHaveLength(3);
+    expect(teams[0]![0]!.id).toBe("p0");
+    expect(teams[1]![0]!.id).toBe("p1");
+    expect(teams[2]![0]!.id).toBe("p2");
+  });
+
+  it("lets a strong candidate appear in more than one alternative — these are different starting points, not a partition", () => {
+    // b is the ideal diversifying partner for both a and c (no overlap with
+    // either), so it's expected to show up filling out both team 1 and 2.
+    const pool: TeamCandidate[] = [
+      { id: "a", score: 100, counters: ["x"] },
+      { id: "c", score: 90, counters: ["x"] },
+      { id: "b", score: 80, counters: ["y"] },
+      { id: "d", score: 70, counters: ["y"] },
+    ];
+    const teams = suggestTeams(pool, 2, 2);
+    expect(teams[0]!.map((t) => t.id)).toEqual(["a", "b"]);
+    expect(teams[1]!.map((t) => t.id)).toEqual(["c", "b"]);
+  });
+
+  it("returns fewer teams than requested when the pool is too small, without crashing", () => {
+    const pool: TeamCandidate[] = [{ id: "a", score: 100, counters: [] }];
+    expect(suggestTeams(pool, 3, 3)).toHaveLength(1);
+  });
+
+  it("returns no teams for an empty pool", () => {
+    expect(suggestTeams([], 3, 3)).toEqual([]);
   });
 });

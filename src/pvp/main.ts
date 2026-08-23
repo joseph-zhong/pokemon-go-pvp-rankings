@@ -1,97 +1,133 @@
 import "../shared/base.css";
 import "./pvp.css";
-import { suggestTeam, type TeamCandidate } from "../calc/team";
+import { suggestTeams, type TeamCandidate } from "../calc/team";
 import { loadPokemon, type PokemonEntry } from "../data/pokemon";
 import { loadLeagues, loadTeamPool, type LeagueInfo, type TeamPool } from "../data/teams";
-import { createCombobox, type ComboboxHandle } from "../ui/combobox";
 
-const SLOT_COUNT = 3;
+const TEAM_SIZE = 3;
+const ALTERNATIVES = 3;
+// How many top-scoring Pokemon are offered as toggleable chips. This is a
+// shortlist, not the full eligible pool (which can run 100s-1000s deep) —
+// nobody realistically wants to exclude the 400th-ranked species, and a
+// shortlist keeps the toggle UI scannable instead of an overwhelming wall.
+const POOL_SHORTLIST_SIZE = 24;
 
 const els = {
   form: document.getElementById("form") as HTMLFormElement,
   leagueSelect: document.getElementById("league-select") as HTMLSelectElement,
+  poolSection: document.getElementById("pool-section") as HTMLElement,
+  poolList: document.getElementById("pool-list") as HTMLElement,
   result: document.getElementById("result") as HTMLElement,
+  teamsList: document.getElementById("teams-list") as HTMLElement,
   emptyState: document.getElementById("empty-state") as HTMLElement,
-  regenerateBtn: document.getElementById("regenerate-btn") as HTMLButtonElement,
 };
 
-const slotEls = Array.from({ length: SLOT_COUNT }, (_, i) => ({
-  input: document.getElementById(`slot-${i}-input`) as HTMLInputElement,
-  list: document.getElementById(`slot-${i}-listbox`) as HTMLUListElement,
-  info: document.getElementById(`slot-${i}-info`) as HTMLElement,
-}));
-
-let pokemonList: PokemonEntry[] = [];
 let pokemonById = new Map<string, PokemonEntry>();
 let leagues: LeagueInfo[] = [];
 let pool: TeamPool = {};
-let slots: (string | null)[] = Array(SLOT_COUNT).fill(null);
-const comboboxes: ComboboxHandle[] = [];
+let shortlist: TeamCandidate[] = [];
+let excluded = new Set<string>();
 
-function renderSlot(i: number) {
-  const id = slots[i];
-  const info = slotEls[i]!.info;
-  const entry = id ? pokemonById.get(id) : undefined;
-  const data = id ? pool[id] : undefined;
-  info.innerHTML = "";
-  if (!entry || !data) return;
+function speciesName(id: string): string {
+  return pokemonById.get(id)?.name ?? id;
+}
 
-  const score = document.createElement("span");
-  score.className = "score";
-  score.textContent = `Score ${data.score.toFixed(1)}`;
-  info.appendChild(score);
+function renderPool() {
+  els.poolList.innerHTML = "";
+  for (const candidate of shortlist) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "pool-chip";
+    if (excluded.has(candidate.id)) btn.classList.add("pool-chip-excluded");
+    btn.setAttribute("aria-pressed", String(!excluded.has(candidate.id)));
 
-  if (data.counters.length > 0) {
-    const counterNames = data.counters
-      .slice(0, 3)
-      .map((counterId) => pokemonById.get(counterId)?.name ?? counterId)
-      .join(", ");
-    info.appendChild(document.createTextNode(` · weak to: ${counterNames}`));
+    const name = document.createElement("span");
+    name.textContent = speciesName(candidate.id);
+    btn.appendChild(name);
+
+    const score = document.createElement("span");
+    score.className = "score";
+    score.textContent = candidate.score.toFixed(1);
+    btn.appendChild(score);
+
+    btn.addEventListener("click", () => {
+      if (excluded.has(candidate.id)) excluded.delete(candidate.id);
+      else excluded.add(candidate.id);
+      renderPool();
+      renderTeams();
+    });
+    els.poolList.appendChild(btn);
   }
 }
 
-function renderAllSlots() {
-  for (let i = 0; i < SLOT_COUNT; i++) renderSlot(i);
+function renderTeams() {
+  const available = shortlist.filter((c) => !excluded.has(c.id));
+  const teams = suggestTeams(available, ALTERNATIVES, TEAM_SIZE);
+
+  els.teamsList.innerHTML = "";
+  teams.forEach((team, i) => {
+    const card = document.createElement("div");
+    card.className = "team-card";
+
+    const heading = document.createElement("h3");
+    heading.textContent = `Team ${i + 1}`;
+    card.appendChild(heading);
+
+    const members = document.createElement("div");
+    members.className = "team-card-members";
+    for (const member of team) {
+      const row = document.createElement("div");
+      row.className = "team-member";
+
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = speciesName(member.id);
+      row.appendChild(name);
+
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      const scoreSpan = document.createElement("span");
+      scoreSpan.className = "score";
+      scoreSpan.textContent = `Score ${member.score.toFixed(1)}`;
+      meta.appendChild(scoreSpan);
+      if (member.counters.length > 0) {
+        const counterNames = member.counters.slice(0, 3).map(speciesName).join(", ");
+        meta.appendChild(document.createTextNode(` · weak to: ${counterNames}`));
+      }
+      row.appendChild(meta);
+
+      members.appendChild(row);
+    }
+    card.appendChild(members);
+    els.teamsList.appendChild(card);
+  });
+
+  els.result.hidden = teams.length === 0;
 }
 
-function setSlot(i: number, id: string) {
-  slots[i] = id;
-  const entry = pokemonById.get(id);
-  if (entry) comboboxes[i]?.setDisplayValue(entry.name);
-  renderAllSlots();
-}
-
-// Suggests a fresh team from this league's pool (§3 of the design doc:
-// greedy counter-diversity), overwriting any manual picks — "Regenerate"
-// is a new starting point, not a merge with what's already there.
 async function onLeagueChange() {
   const leagueKey = els.leagueSelect.value;
   if (!leagueKey) return;
 
+  els.poolSection.hidden = true;
   els.result.hidden = true;
   els.emptyState.hidden = false;
   els.emptyState.textContent = "Loading…";
 
   pool = await loadTeamPool(leagueKey);
-  const candidates: TeamCandidate[] = Object.entries(pool).map(([id, data]) => ({
-    id,
-    score: data.score,
-    counters: data.counters,
-  }));
-  const suggested = suggestTeam(candidates, SLOT_COUNT);
+  shortlist = Object.entries(pool)
+    .map(([id, data]) => ({ id, score: data.score, counters: data.counters }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, POOL_SHORTLIST_SIZE);
+  excluded = new Set();
 
-  slots = Array(SLOT_COUNT).fill(null);
-  suggested.forEach((candidate, i) => {
-    slots[i] = candidate.id;
-    const entry = pokemonById.get(candidate.id);
-    if (entry) comboboxes[i]?.setDisplayValue(entry.name);
-  });
+  const hasData = shortlist.length > 0;
+  els.poolSection.hidden = !hasData;
+  els.emptyState.hidden = hasData;
+  if (!hasData) els.emptyState.textContent = "No ranked Pokemon found for this league.";
 
-  els.result.hidden = suggested.length === 0;
-  els.emptyState.hidden = suggested.length > 0;
-  if (suggested.length === 0) els.emptyState.textContent = "No ranked Pokemon found for this league.";
-
-  renderAllSlots();
+  renderPool();
+  renderTeams();
 }
 
 function populateLeagueSelect() {
@@ -105,36 +141,9 @@ function populateLeagueSelect() {
 }
 
 els.leagueSelect.addEventListener("change", onLeagueChange);
-els.regenerateBtn.addEventListener("click", onLeagueChange);
 els.form.addEventListener("submit", (e) => e.preventDefault());
 
-// Ineligible-for-this-league and already-on-team options stay in the
-// search results, disabled rather than hidden — see
-// plans/pvp/design-doc.md section 4 for why (cup rules aren't obvious;
-// a species silently missing from search reads as a bug).
-for (let i = 0; i < SLOT_COUNT; i++) {
-  comboboxes.push(
-    createCombobox({
-      input: slotEls[i]!.input,
-      list: slotEls[i]!.list,
-      getOptions: () =>
-        pokemonList.map((p) => {
-          const eligible = pool[p.id];
-          const usedElsewhere = slots.some((s, idx) => idx !== i && s === p.id);
-          return {
-            id: p.id,
-            label: p.name,
-            sublabel: `#${p.dex}`,
-            disabledReason: !eligible ? "not eligible" : usedElsewhere ? "already on team" : undefined,
-          };
-        }),
-      onSelect: (option) => setSlot(i, option.id),
-    }),
-  );
-}
-
 Promise.all([loadPokemon(), loadLeagues()]).then(([pokemonData, leaguesData]) => {
-  pokemonList = pokemonData;
   pokemonById = new Map(pokemonData.map((p) => [p.id, p]));
   leagues = leaguesData;
   populateLeagueSelect();

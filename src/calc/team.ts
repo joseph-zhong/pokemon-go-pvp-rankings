@@ -9,18 +9,15 @@ export interface TeamCandidate {
 }
 
 /**
- * Builds a team of `size` by picking the highest-scoring candidate first,
- * then repeatedly picking the highest-scoring remaining candidate whose
- * counters overlap the least with everyone already picked. O(size * n) —
- * not exhaustive search over all combinations, just one reasonable team.
+ * Fills a team starting from `seed`, repeatedly picking the highest-scoring
+ * remaining candidate whose counters overlap the least with everyone
+ * already picked. O(size * n) — not exhaustive search over all
+ * combinations, just one reasonable team from a fixed starting point.
  */
-export function suggestTeam(pool: readonly TeamCandidate[], size = 3): TeamCandidate[] {
-  const sorted = [...pool].sort((a, b) => b.score - a.score);
-  if (sorted.length === 0) return [];
-
-  const team: TeamCandidate[] = [sorted[0]!];
-  const usedCounters = new Set(sorted[0]!.counters);
-  const remaining = sorted.slice(1);
+function fillTeamFrom(seed: TeamCandidate, sortedRemaining: readonly TeamCandidate[], size: number): TeamCandidate[] {
+  const team: TeamCandidate[] = [seed];
+  const usedCounters = new Set(seed.counters);
+  const remaining = [...sortedRemaining];
 
   while (team.length < size && remaining.length > 0) {
     let bestIndex = 0;
@@ -38,4 +35,30 @@ export function suggestTeam(pool: readonly TeamCandidate[], size = 3): TeamCandi
   }
 
   return team;
+}
+
+/** One team: highest-scoring candidate first, then greedy-diverse fill. */
+export function suggestTeam(pool: readonly TeamCandidate[], size = 3): TeamCandidate[] {
+  const sorted = [...pool].sort((a, b) => b.score - a.score);
+  if (sorted.length === 0) return [];
+  return fillTeamFrom(sorted[0]!, sorted.slice(1), size);
+}
+
+/**
+ * `alternatives` distinct teams, not `alternatives` near-duplicates: team N
+ * is seeded from the Nth-best-scoring candidate overall (not whoever's left
+ * over from team N-1), then filled the same greedy-diverse way. The same
+ * strong candidate can legitimately appear in more than one alternative —
+ * these are different starting points to choose between, not a partition
+ * of the pool.
+ */
+export function suggestTeams(pool: readonly TeamCandidate[], alternatives = 3, size = 3): TeamCandidate[][] {
+  const sorted = [...pool].sort((a, b) => b.score - a.score);
+  const teams: TeamCandidate[][] = [];
+  for (let seedIndex = 0; seedIndex < alternatives && seedIndex < sorted.length; seedIndex++) {
+    const seed = sorted[seedIndex]!;
+    const rest = sorted.filter((c) => c.id !== seed.id);
+    teams.push(fillTeamFrom(seed, rest, size));
+  }
+  return teams;
 }

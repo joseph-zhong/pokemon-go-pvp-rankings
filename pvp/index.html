@@ -16,7 +16,7 @@
       <header class="page-head">
         <a class="page-nav-back" href="/">&larr; Tools</a>
         <h1>Team Builder</h1>
-        <p class="page-sub">A suggested team, plus your own picks — built from PvPoke's battle-sim rankings.</p>
+        <p class="page-sub">3 suggested teams, built from PvPoke's battle-sim rankings.</p>
       </header>
 
       <form id="form" class="card" autocomplete="off">
@@ -26,65 +26,15 @@
         </div>
       </form>
 
-      <section id="result" class="card" hidden>
-        <div class="team-slots-head">
-          <h2 class="rank-tables-title">Your team</h2>
-          <button type="button" id="regenerate-btn" class="chip-btn">Regenerate suggestion</button>
-        </div>
+      <section id="pool-section" class="card" hidden>
+        <h2 class="rank-tables-title">Available Pokemon</h2>
+        <p class="pool-hint">Top picks for this league — tap to exclude one from the suggestions below.</p>
+        <div id="pool-list" class="pool-list"></div>
+      </section>
 
-        <div id="team-slots" class="team-slots">
-          <div class="team-slot">
-            <label for="slot-0-input">Pokemon 1</label>
-            <div class="combobox" id="slot-0-combobox">
-              <input
-                id="slot-0-input"
-                type="text"
-                role="combobox"
-                aria-expanded="false"
-                aria-autocomplete="list"
-                aria-controls="slot-0-listbox"
-                placeholder="Search Pokemon…"
-                autocomplete="off"
-              />
-              <ul id="slot-0-listbox" class="combobox-list" role="listbox" hidden></ul>
-            </div>
-            <p class="team-slot-info" id="slot-0-info"></p>
-          </div>
-          <div class="team-slot">
-            <label for="slot-1-input">Pokemon 2</label>
-            <div class="combobox" id="slot-1-combobox">
-              <input
-                id="slot-1-input"
-                type="text"
-                role="combobox"
-                aria-expanded="false"
-                aria-autocomplete="list"
-                aria-controls="slot-1-listbox"
-                placeholder="Search Pokemon…"
-                autocomplete="off"
-              />
-              <ul id="slot-1-listbox" class="combobox-list" role="listbox" hidden></ul>
-            </div>
-            <p class="team-slot-info" id="slot-1-info"></p>
-          </div>
-          <div class="team-slot">
-            <label for="slot-2-input">Pokemon 3</label>
-            <div class="combobox" id="slot-2-combobox">
-              <input
-                id="slot-2-input"
-                type="text"
-                role="combobox"
-                aria-expanded="false"
-                aria-autocomplete="list"
-                aria-controls="slot-2-listbox"
-                placeholder="Search Pokemon…"
-                autocomplete="off"
-              />
-              <ul id="slot-2-listbox" class="combobox-list" role="listbox" hidden></ul>
-            </div>
-            <p class="team-slot-info" id="slot-2-info"></p>
-          </div>
-        </div>
+      <section id="result" class="card" hidden>
+        <h2 class="rank-tables-title">Suggested teams</h2>
+        <div id="teams-list" class="teams-list"></div>
       </section>
 
       <p id="empty-state" class="empty-state">Loading…</p>

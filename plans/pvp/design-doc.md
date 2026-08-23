@@ -38,13 +38,15 @@ This is O(n) per slot against an already-sorted, already-small (~100-300 species
 
 **Explicitly out of scope for v1:** full combinatorial team synergy search, shield-usage simulation, opponent-team prediction. Flag as future work if the greedy version turns out to feel wrong in practice.
 
-## 4. Manual override: dim, don't hide
+## 4. Manual override: toggle a shortlist, generate 3 alternatives
 
-Auto-suggestion is a starting point, not the whole feature — users pick their own 3 too, searching the same combobox `/ranks/` already has (`src/ui/combobox.ts`, now shared via the multi-page restructuring).
+First cut of this section used the `/ranks/`-style search combobox with disabled options for ineligible/duplicate picks (dim, don't hide — see the earlier commit for that version). Revised after actually using it: three independent per-slot searches is a lot of typing for "I don't want to use my favorite," and it only ever produced one team, so there was nothing to compare against.
 
-**Decision:** ineligible or already-picked species stay in the results, rendered disabled (reduced opacity, `aria-disabled`, not clickable) rather than filtered out of the list entirely. Reasoning: cup legality rules aren't obvious (why can't I add Talonflame to a Scroll Cup team?) — silently omitting a species from search results reads as a bug ("is search broken?"), while a visibly-disabled entry with a short reason ("not eligible this cup") teaches the rule instead of hiding it. Same treatment for a species already on the current team, so a duplicate pick is clearly not an option rather than mysteriously missing.
+**Decision:** show a shortlist of the top ~24 highest-scoring eligible Pokemon as click-to-toggle chips (tap to exclude, tap again to re-include — no search needed for the common case of "everything except this one thing"), and generate **3** alternative teams from whatever's still available, not one. `suggestTeams()` in `src/calc/team.ts` seeds team N from the Nth-best-scoring available candidate (not leftovers from team N-1), then fills the rest the same greedy-diverse way as `suggestTeam()` — so the same strong candidate can legitimately anchor more than one alternative, since these are different starting points to pick between, not a partition of the pool. Regenerates automatically on every toggle; no separate "Generate" button to press.
 
-This extends the existing `createCombobox` component with an optional per-option disabled predicate + reason, rather than a new component — the search/filter/keyboard-nav logic is identical to `/ranks/`'s Pokemon search, only the render step differs.
+The `disabledReason` extension added to `src/ui/combobox.ts` for the first cut was reverted (unused once the combobox left this page entirely) rather than left in as unused surface — see git history if a future page needs that pattern again, the shape was simple.
+
+**Explicitly out of scope:** searching to add a specific low-ranked species not in the top-24 shortlist. Revisit if the shortlist ever feels too narrow in practice.
 
 ## 5. Data additions
 
