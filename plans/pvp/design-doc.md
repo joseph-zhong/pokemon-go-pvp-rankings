@@ -56,4 +56,14 @@ Also new: `public/data/leagues.min.json`, the catalog from §1 (`{ key, title, c
 
 ## 6. Status: implemented
 
-Live at `/pvp/`. `src/calc/team.ts` (`suggestTeam`, tested against a synthetic pool with known overlapping counters), `src/data/teams.ts` (`loadLeagues`/`loadTeamPool`, per-league lazy-loaded and cached), `src/ui/combobox.ts` extended with `disabledReason` (keyboard nav skips disabled entries; verified in Chromium that "not eligible" species render dimmed in the Scroll Cup search results rather than being hidden). 11 leagues discovered as of this writing (3 standard + 8 currently-active cups) — that count will drift over time by design, not a bug.
+Live at `/pvp/`. `src/calc/team.ts` (`suggestTeam`/`suggestTeams`, tested against synthetic pools with known overlapping counters), `src/data/teams.ts` (`loadLeagues`/`loadTeamPool`, per-league lazy-loaded and cached), `src/ui/combobox.ts` extended with `disabledReason` for the manual "My team" search (keyboard nav skips disabled entries; verified in Chromium that "not eligible"/"already on team" species render dimmed rather than being hidden). 11 leagues discovered as of this writing (3 standard + 8 currently-active cups) — that count will drift over time by design, not a bug.
+
+## 7. Team-level threat feedback and a manual team
+
+A member's own `counters` list only says "this loses to X" — it doesn't say whether X is a problem for the *team*, or just an unlucky matchup for one pick. The real structural weakness is an opponent that counters more than one member at once: a single answer the other player can lean on every game.
+
+**Decision:** `analyzeTeamThreats(team)` in `src/calc/team.ts` aggregates every member's `counters` and surfaces opponents that beat 2+ of them, sorted worst-first — pure client-side aggregation over data already fetched, no new source, no simulation. Rendered as "Struggles against: X (2/3), Y (2/3)" under every team card, suggested or manual alike, or an explicit "nothing beats more than one of your picks" when there's nothing to flag (a genuinely good sign worth stating, not just an empty section).
+
+Also added a **manual "My team" section** below the 3 suggestions: 3 search slots (the `disabledReason` combobox, same pattern as the first cut of §4, now genuinely used again) searching the *full* eligible pool rather than the top-24 shortlist, since picking your own team is precisely for reaching past the shortlist. Same member-info and threat-analysis rendering as the suggested teams, so all 4 teams on the page (3 suggested + manual) read consistently.
+
+Also added a one-line **score legend** ("Score is PvPoke's 0-100 battle-sim rating...") — the raw number had no context otherwise.

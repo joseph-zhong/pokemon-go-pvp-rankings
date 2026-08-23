@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { suggestTeam, suggestTeams, type TeamCandidate } from "./team";
+import { analyzeTeamThreats, suggestTeam, suggestTeams, type TeamCandidate } from "./team";
 
 describe("suggestTeam", () => {
   it("returns an empty team for an empty pool", () => {
@@ -87,5 +87,36 @@ describe("suggestTeams", () => {
 
   it("returns no teams for an empty pool", () => {
     expect(suggestTeams([], 3, 3)).toEqual([]);
+  });
+});
+
+describe("analyzeTeamThreats", () => {
+  it("ranks an opponent that counters two members above one that only counters one", () => {
+    const team: TeamCandidate[] = [
+      { id: "a", score: 100, counters: ["shared", "onlyA"] },
+      { id: "b", score: 90, counters: ["shared", "onlyB"] },
+      { id: "c", score: 80, counters: ["onlyC"] },
+    ];
+    const threats = analyzeTeamThreats(team);
+    expect(threats[0]).toEqual({ opponentId: "shared", beatsCount: 2, beats: ["a", "b"] });
+    // The single-member threats can come in either order but must both be present at count 1.
+    expect(threats.slice(1).every((t) => t.beatsCount === 1)).toBe(true);
+    expect(threats.map((t) => t.opponentId)).toContain("onlyA");
+    expect(threats.map((t) => t.opponentId)).toContain("onlyB");
+    expect(threats.map((t) => t.opponentId)).toContain("onlyC");
+  });
+
+  it("returns no shared threats when no opponent counters more than one member", () => {
+    const team: TeamCandidate[] = [
+      { id: "a", score: 100, counters: ["x"] },
+      { id: "b", score: 90, counters: ["y"] },
+    ];
+    const threats = analyzeTeamThreats(team);
+    expect(threats.every((t) => t.beatsCount === 1)).toBe(true);
+  });
+
+  it("returns nothing for a team with no listed counters", () => {
+    const team: TeamCandidate[] = [{ id: "a", score: 100, counters: [] }];
+    expect(analyzeTeamThreats(team)).toEqual([]);
   });
 });

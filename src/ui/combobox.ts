@@ -6,6 +6,8 @@ export interface ComboboxOption {
   id: string;
   label: string;
   sublabel?: string;
+  /** When set, the option renders disabled (dimmed, not selectable) with this shown as the reason — e.g. "not eligible this cup". Disabled options stay in the list rather than being filtered out, so the rule is visible instead of the option just silently missing. */
+  disabledReason?: string;
 }
 
 export interface ComboboxDeps {
@@ -58,18 +60,26 @@ export function createCombobox({ input, list, getOptions, onSelect, maxResults =
       name.textContent = option.label;
       li.appendChild(name);
 
-      if (option.sublabel) {
-        const dex = document.createElement("span");
-        dex.className = "dex";
-        dex.textContent = option.sublabel;
-        li.appendChild(dex);
+      if (option.disabledReason) {
+        li.classList.add("combobox-option-disabled");
+        li.setAttribute("aria-disabled", "true");
+        const reason = document.createElement("span");
+        reason.className = "dex";
+        reason.textContent = option.disabledReason;
+        li.appendChild(reason);
+      } else {
+        if (option.sublabel) {
+          const dex = document.createElement("span");
+          dex.className = "dex";
+          dex.textContent = option.sublabel;
+          li.appendChild(dex);
+        }
+        li.addEventListener("mousedown", (e) => {
+          // mousedown (not click) so this fires before the input's blur handler.
+          e.preventDefault();
+          select(option);
+        });
       }
-
-      li.addEventListener("mousedown", (e) => {
-        // mousedown (not click) so this fires before the input's blur handler.
-        e.preventDefault();
-        select(option);
-      });
       list.appendChild(li);
     });
     list.hidden = false;
@@ -93,13 +103,29 @@ export function createCombobox({ input, list, getOptions, onSelect, maxResults =
     onSelect(option);
   }
 
+  // Disabled options stay in the list (see ComboboxOption.disabledReason)
+  // but keyboard navigation steps over them — landing on an unselectable
+  // item would be a dead end for keyboard users.
+  function stepIndex(from: number, direction: 1 | -1): number {
+    const n = results.length;
+    if (n === 0) return -1;
+    let next = from;
+    for (let steps = 0; steps < n; steps++) {
+      next = next + direction;
+      if (next >= n) next = 0;
+      if (next < 0) next = n - 1;
+      if (!results[next]!.disabledReason) return next;
+    }
+    return -1;
+  }
+
   input.addEventListener("input", () => {
     if (suppressNextInput) {
       suppressNextInput = false;
       return;
     }
     results = filterOptions(input.value, getOptions(), maxResults);
-    activeIndex = results.length > 0 ? 0 : -1;
+    activeIndex = stepIndex(-1, 1);
     render();
   });
 
@@ -108,19 +134,17 @@ export function createCombobox({ input, list, getOptions, onSelect, maxResults =
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
-        if (results.length === 0) return;
-        activeIndex = (activeIndex + 1) % results.length;
+        activeIndex = stepIndex(activeIndex, 1);
         render();
         break;
       case "ArrowUp":
         e.preventDefault();
-        if (results.length === 0) return;
-        activeIndex = (activeIndex - 1 + results.length) % results.length;
+        activeIndex = stepIndex(activeIndex, -1);
         render();
         break;
       case "Enter": {
-        const chosen = results[activeIndex] ?? results[0];
-        if (chosen) {
+        const chosen = results[activeIndex];
+        if (chosen && !chosen.disabledReason) {
           e.preventDefault();
           select(chosen);
         }

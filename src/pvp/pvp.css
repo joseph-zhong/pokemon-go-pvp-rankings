@@ -1,22 +1,7 @@
 /* /pvp/ page only. Shared tokens/chrome/combobox live in shared/base.css. */
 
-.chip-btn {
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border: none;
-  border-radius: 999px;
-  padding: 4px 12px;
-  cursor: pointer;
-}
-
-.chip-btn:hover {
-  filter: brightness(1.08);
-}
-
-.pool-hint {
+.pool-hint,
+.score-hint {
   margin: 4px 0 12px;
   font-size: 13px;
   color: var(--ink-soft);
@@ -102,6 +87,56 @@
 }
 
 .team-member .meta .score {
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.team-threats {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.team-threats .label {
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.team-threats .safe {
+  color: var(--ink-soft);
+}
+
+.team-threats .threat-name {
+  font-weight: 600;
+}
+
+.team-threats .threat-count {
+  color: var(--ink-soft);
+}
+
+.team-slots {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.team-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.team-slot-info {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  min-height: 1.2em;
+}
+
+.team-slot-info .score {
   font-weight: 600;
   color: var(--ink);
   font-variant-numeric: tabular-nums;

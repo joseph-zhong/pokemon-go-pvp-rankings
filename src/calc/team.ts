@@ -62,3 +62,34 @@ export function suggestTeams(pool: readonly TeamCandidate[], alternatives = 3, s
   }
   return teams;
 }
+
+export interface TeamThreat {
+  /** Species id of the shared threat. */
+  opponentId: string;
+  /** How many of the team's members this one opponent counters. */
+  beatsCount: number;
+  /** Which team member ids it counters. */
+  beats: string[];
+}
+
+/**
+ * A single member's "weak to" list only tells you about that one matchup.
+ * The structural weakness of a *team* is an opponent that counters more
+ * than one member at once — that's a single answer your opponent can lean
+ * on repeatedly, not just a bad individual matchup. Pure aggregation over
+ * data already fetched (each member's `counters`), no new data or
+ * simulation needed. Sorted worst-first (most members threatened).
+ */
+export function analyzeTeamThreats(team: readonly TeamCandidate[]): TeamThreat[] {
+  const beatsByOpponent = new Map<string, string[]>();
+  for (const member of team) {
+    for (const opponentId of member.counters) {
+      const beats = beatsByOpponent.get(opponentId) ?? [];
+      beats.push(member.id);
+      beatsByOpponent.set(opponentId, beats);
+    }
+  }
+  return [...beatsByOpponent.entries()]
+    .map(([opponentId, beats]) => ({ opponentId, beatsCount: beats.length, beats }))
+    .sort((a, b) => b.beatsCount - a.beatsCount);
+}

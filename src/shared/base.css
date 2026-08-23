@@ -199,6 +199,19 @@ select:focus-visible {
   background: var(--accent-soft);
 }
 
+.combobox-option-disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.combobox-option-disabled:hover {
+  background: none;
+}
+
+.combobox-option-disabled .dex {
+  font-style: italic;
+}
+
 .empty-state {
   text-align: center;
   color: var(--ink-soft);
