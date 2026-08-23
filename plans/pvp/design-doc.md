@@ -38,18 +38,32 @@ This is O(n) per slot against an already-sorted, already-small (~100-300 species
 
 **Explicitly out of scope for v1:** full combinatorial team synergy search, shield-usage simulation, opponent-team prediction. Flag as future work if the greedy version turns out to feel wrong in practice.
 
-## 4. Manual override: dim, don't hide
+## 4. Manual override: toggle a shortlist, generate 3 alternatives
 
-Auto-suggestion is a starting point, not the whole feature — users pick their own 3 too, searching the same combobox `/ranks/` already has (`src/ui/combobox.ts`, now shared via the multi-page restructuring).
+First cut of this section used the `/ranks/`-style search combobox with disabled options for ineligible/duplicate picks (dim, don't hide — see the earlier commit for that version). Revised after actually using it: three independent per-slot searches is a lot of typing for "I don't want to use my favorite," and it only ever produced one team, so there was nothing to compare against.
 
-**Decision:** ineligible or already-picked species stay in the results, rendered disabled (reduced opacity, `aria-disabled`, not clickable) rather than filtered out of the list entirely. Reasoning: cup legality rules aren't obvious (why can't I add Talonflame to a Scroll Cup team?) — silently omitting a species from search results reads as a bug ("is search broken?"), while a visibly-disabled entry with a short reason ("not eligible this cup") teaches the rule instead of hiding it. Same treatment for a species already on the current team, so a duplicate pick is clearly not an option rather than mysteriously missing.
+**Decision:** show a shortlist of the top ~24 highest-scoring eligible Pokemon as click-to-toggle chips (tap to exclude, tap again to re-include — no search needed for the common case of "everything except this one thing"), and generate **3** alternative teams from whatever's still available, not one. `suggestTeams()` in `src/calc/team.ts` seeds team N from the Nth-best-scoring available candidate (not leftovers from team N-1), then fills the rest the same greedy-diverse way as `suggestTeam()` — so the same strong candidate can legitimately anchor more than one alternative, since these are different starting points to pick between, not a partition of the pool. Regenerates automatically on every toggle; no separate "Generate" button to press.
 
-This extends the existing `createCombobox` component with an optional per-option disabled predicate + reason, rather than a new component — the search/filter/keyboard-nav logic is identical to `/ranks/`'s Pokemon search, only the render step differs.
+The `disabledReason` extension added to `src/ui/combobox.ts` for the first cut was reverted (unused once the combobox left this page entirely) rather than left in as unused surface — see git history if a future page needs that pattern again, the shape was simple.
+
+**Explicitly out of scope:** searching to add a specific low-ranked species not in the top-24 shortlist. Revisit if the shortlist ever feels too narrow in practice.
 
 ## 5. Data additions
 
-New per-league-or-cup file, `public/data/teams/<key>.min.json` (`key` = `great`/`ultra`/`master`/the cup's slug), each: `{ speciesId: { rating, counters: speciesId[] } }[]`, sorted by rating descending — small (only eligible species, not all 1600) and reuses the fetch pattern from `movesets.min.json`.
+New per-league-or-cup file, `public/data/teams/<key>.min.json` (`key` = `great`/`ultra`/`master`/the cup's slug): `Record<speciesId, { score: number; counters: string[] }>` — small (only eligible species, not all 1600) and reuses the fetch pattern from `movesets.min.json`. Uses `score` (PvPoke's own 0-100 rank score) rather than the raw `rating` field named in the original sketch above — `score` is what actually determines PvPoke's own ordering, `rating` is closer to an internal battle-sim Elo number.
 
-## 6. Next step
+Also new: `public/data/leagues.min.json`, the catalog from §1 (`{ key, title, cp }[]`) driving the league/cup `<select>`.
 
-Not started. Once this direction is confirmed: extend `fetch-gamemaster.mjs` for §1/§2/§5, implement the greedy suggester (§3) as a pure function (testable the same way `rank.ts` is), then the `/pvp/` UI (league/cup selector, 3 team slots, the extended combobox from §4).
+## 6. Status: implemented
+
+Live at `/pvp/`. `src/calc/team.ts` (`suggestTeam`/`suggestTeams`, tested against synthetic pools with known overlapping counters), `src/data/teams.ts` (`loadLeagues`/`loadTeamPool`, per-league lazy-loaded and cached), `src/ui/combobox.ts` extended with `disabledReason` for the manual "My team" search (keyboard nav skips disabled entries; verified in Chromium that "not eligible"/"already on team" species render dimmed rather than being hidden). 11 leagues discovered as of this writing (3 standard + 8 currently-active cups) — that count will drift over time by design, not a bug.
+
+## 7. Team-level threat feedback and a manual team
+
+A member's own `counters` list only says "this loses to X" — it doesn't say whether X is a problem for the *team*, or just an unlucky matchup for one pick. The real structural weakness is an opponent that counters more than one member at once: a single answer the other player can lean on every game.
+
+**Decision:** `analyzeTeamThreats(team)` in `src/calc/team.ts` aggregates every member's `counters` and surfaces opponents that beat 2+ of them, sorted worst-first — pure client-side aggregation over data already fetched, no new source, no simulation. Rendered as "Struggles against: X (2/3), Y (2/3)" under every team card, suggested or manual alike, or an explicit "nothing beats more than one of your picks" when there's nothing to flag (a genuinely good sign worth stating, not just an empty section).
+
+Also added a **manual "My team" section** below the 3 suggestions: 3 search slots (the `disabledReason` combobox, same pattern as the first cut of §4, now genuinely used again) searching the *full* eligible pool rather than the top-24 shortlist, since picking your own team is precisely for reaching past the shortlist. Same member-info and threat-analysis rendering as the suggested teams, so all 4 teams on the page (3 suggested + manual) read consistently.
+
+Also added a one-line **score legend** ("Score is PvPoke's 0-100 battle-sim rating...") — the raw number had no context otherwise.

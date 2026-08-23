@@ -19,7 +19,7 @@ Multi-page static site (separate Vite entry points, no client-side router):
 
 - `/` — landing page linking to the tools below
 - `/ranks/` — IV rank checker. See [`plans/ranks/design-doc.md`](plans/ranks/design-doc.md) for the full write-up. Short version: this is a pure calculation, not a database — for any Pokemon, walk each of the 4096 possible IV combos to the highest level under a league's CP cap, sort by stat product, and your rank is where you land. It runs client-side in under a millisecond; there's nothing to look up.
-- `/pvp/` — team builder (in progress). See [`plans/pvp/design-doc.md`](plans/pvp/design-doc.md).
+- `/pvp/` — team builder: a suggested team of 3 (greedy counter-diversity, not naive top-3) for Great/Ultra/Master League or whatever cup is currently rotating, plus manual overrides via search. See [`plans/pvp/design-doc.md`](plans/pvp/design-doc.md).
 
 Shared code lives in `src/calc/`, `src/data/`, `src/ui/`, `src/shared/`; each page's own logic/styles live in `src/<page>/`.
 
