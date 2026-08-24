@@ -5,6 +5,8 @@ export interface PokemonEntry {
   atk: number;
   def: number;
   hp: number;
+  /** Primary type (e.g. "grass"), or "none" if unset upstream. */
+  type: string;
   /** Species id of the direct previous evolution stage, if any. */
   parent?: string;
   /** Species ids of the direct next evolution stage(s), if any. */
