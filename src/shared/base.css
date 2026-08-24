@@ -53,6 +53,10 @@ body {
   font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   font-size: 16px;
   line-height: 1.5;
+  /* Disables the double-tap-to-zoom gesture on mobile (a frequent mis-tap
+     while tapping steppers/buttons quickly) without disabling pinch-zoom,
+     unlike user-scalable=no, which would hurt accessibility. */
+  touch-action: manipulation;
 }
 
 .page {

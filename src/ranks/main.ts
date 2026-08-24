@@ -1,6 +1,6 @@
 import "../shared/base.css";
 import "./ranks.css";
-import { findCombo, firstRankBelow, leagueById, rankAllIvs, type RankedCombo } from "../calc/rank";
+import { findCombo, firstRankBelow, leagueById, rankAllIvs, type League, type RankedCombo } from "../calc/rank";
 import { loadMoves, loadMovesets, type MoveInfo, type MovesetsBySpecies } from "../data/moves";
 import { loadPokemon, type PokemonEntry } from "../data/pokemon";
 import { createCombobox } from "../ui/combobox";
@@ -10,23 +10,11 @@ const els = {
   form: document.getElementById("form") as HTMLFormElement,
   pokemonInput: document.getElementById("pokemon-input") as HTMLInputElement,
   pokemonList: document.getElementById("pokemon-listbox") as HTMLUListElement,
-  leagueSelect: document.getElementById("league-select") as HTMLSelectElement,
+  leagueChecks: document.querySelectorAll<HTMLInputElement>(".league-check"),
   bestBuddy: document.getElementById("best-buddy") as HTMLInputElement,
-  result: document.getElementById("result") as HTMLElement,
+  results: document.getElementById("results") as HTMLElement,
+  leagueBlockTemplate: document.getElementById("league-block-template") as HTMLTemplateElement,
   emptyState: document.getElementById("empty-state") as HTMLElement,
-  rankNum: document.getElementById("result-rank-num") as HTMLElement,
-  tier: document.getElementById("result-tier") as HTMLElement,
-  rankBar: document.getElementById("rank-bar") as HTMLElement,
-  level: document.getElementById("result-level") as HTMLElement,
-  cp: document.getElementById("result-cp") as HTMLElement,
-  sp: document.getElementById("result-sp") as HTMLElement,
-  pct: document.getElementById("result-pct") as HTMLElement,
-  rankSlider: document.getElementById("rank-slider") as HTMLInputElement,
-  rankingsBody: document.getElementById("rankings-body") as HTMLElement,
-  evolutionLinks: document.getElementById("evolution-links") as HTMLElement,
-  movesBlock: document.getElementById("moves-block") as HTMLElement,
-  movesFast: document.getElementById("moves-fast") as HTMLElement,
-  movesCharged: document.getElementById("moves-charged") as HTMLElement,
 };
 
 let pokemonList: PokemonEntry[] = [];
@@ -34,11 +22,38 @@ let pokemonById = new Map<string, PokemonEntry>();
 let moves: Record<string, MoveInfo> = {};
 let movesets: MovesetsBySpecies = {};
 let selected: PokemonEntry | null = null;
-// The full 4096-combo ranking for the current species/league/level cap. Only
-// rebuilt on "structural" changes (species, league, best buddy) — never on
-// an IV edit, row click, or slider drag, which just look a combo up in it.
-let currentRankings: RankedCombo[] = [];
+// All members of the currently selected species' evolution line (root to
+// every descendant), in root-first order. A single-stage species is just
+// [selected]. See design-doc.md section 12 — most searches for one stage
+// of a line are really about how the whole line ranks.
+let family: PokemonEntry[] = [];
 const steppers: Record<"atk" | "def" | "hp", IvStepperHandle> = {} as never;
+
+// The full 4096-combo ranking for every (active league, family member) pair
+// at the current species/league-set/level cap. Only rebuilt on "structural"
+// changes (species, active leagues, best buddy) — never on an IV edit, row
+// click, or slider drag, which just look a combo up in it.
+let rankingsByLeague = new Map<string, Map<string, RankedCombo[]>>();
+
+interface LeagueBlockRefs {
+  leagueId: string;
+  root: HTMLElement;
+  familyStrip: HTMLElement;
+  rankNum: HTMLElement;
+  tier: HTMLElement;
+  rankBar: HTMLElement;
+  rankSlider: HTMLInputElement;
+  level: HTMLElement;
+  cp: HTMLElement;
+  sp: HTMLElement;
+  pct: HTMLElement;
+  movesBlock: HTMLElement;
+  movesFast: HTMLElement;
+  movesCharged: HTMLElement;
+  rankingsBody: HTMLElement;
+}
+
+let leagueBlocks: LeagueBlockRefs[] = [];
 
 function currentIvs() {
   return { atk: steppers.atk.get(), def: steppers.def.get(), hp: steppers.hp.get() };
@@ -186,45 +201,6 @@ function renderRankRows(body: HTMLElement, rows: (RankedCombo | "gap")[], curren
   }
 }
 
-function render() {
-  if (!selected || currentRankings.length === 0) return;
-
-  const target = findCombo(currentRankings, currentIvs());
-  const total = currentRankings.length;
-
-  els.result.hidden = false;
-  els.emptyState.hidden = true;
-
-  els.rankNum.textContent = `#${target.rank.toLocaleString()}`;
-  els.level.textContent = String(target.level);
-  els.cp.textContent = target.cp.toLocaleString();
-  els.sp.textContent = Math.round(target.statProduct).toLocaleString();
-  els.pct.textContent = `${target.percentage.toFixed(1)}%`;
-
-  const { label, tier } = tierFor(target);
-  els.tier.textContent = label;
-  els.tier.dataset.tier = tier;
-  els.rankSlider.style.setProperty("--thumb-color", TIER_COLOR_VAR[tier]);
-
-  els.rankSlider.value = String(Math.round(sliderPositionForRank(target.rank, total) * SLIDER_RESOLUTION));
-
-  renderRankRows(els.rankingsBody, buildRankRows(currentRankings, target.rank), target.rank);
-
-  updateUrl();
-}
-
-function updateUrl() {
-  if (!selected) return;
-  const ivs = currentIvs();
-  const params = new URLSearchParams({
-    p: selected.id,
-    l: els.leagueSelect.value,
-    iv: `${ivs.atk}-${ivs.def}-${ivs.hp}`,
-  });
-  if (els.bestBuddy.checked) params.set("bb", "1");
-  history.replaceState(null, "", `?${params.toString()}`);
-}
-
 function moveLabel(moveId: string): string {
   const info = moves[moveId];
   if (!info) return moveId;
@@ -245,77 +221,207 @@ function renderMoveField(el: HTMLElement, primaryLabel: string, altMoveId: strin
 // choice doesn't change with level), computed straight from PvPoke's own
 // battle-sim output rather than something we simulate. See design-doc.md
 // section 13. Species PvPoke never simulated just hide the block.
-function renderMoves(entry: PokemonEntry) {
-  const leagueKey = els.leagueSelect.value as "great" | "ultra" | "master";
-  const moveset = movesets[entry.id]?.[leagueKey];
+function renderMoves(block: LeagueBlockRefs, entry: PokemonEntry) {
+  const moveset = movesets[entry.id]?.[block.leagueId as "great" | "ultra" | "master"];
   if (!moveset) {
-    els.movesBlock.hidden = true;
+    block.movesBlock.hidden = true;
     return;
   }
-  els.movesBlock.hidden = false;
-  renderMoveField(els.movesFast, moveLabel(moveset.fast), moveset.altFast);
-  renderMoveField(els.movesCharged, moveset.charged.map(moveLabel).join(", "), moveset.altCharged);
+  block.movesBlock.hidden = false;
+  renderMoveField(block.movesFast, moveLabel(moveset.fast), moveset.altFast);
+  renderMoveField(block.movesCharged, moveset.charged.map(moveLabel).join(", "), moveset.altCharged);
 }
 
-/** Recompute the full ranking table — call only when species/league/level-cap change. */
-function onStructuralChange() {
-  if (!selected) {
-    els.result.hidden = true;
-    els.emptyState.hidden = false;
+/** Walks to the root of the evolution line, then collects every descendant (root-first). Handles branching lines (e.g. Eevee) as a flat, deduped list. */
+function familyOf(entry: PokemonEntry): PokemonEntry[] {
+  let root = entry;
+  while (root.parent) {
+    const parent = pokemonById.get(root.parent);
+    if (!parent) break;
+    root = parent;
+  }
+
+  const seen = new Set<string>();
+  const result: PokemonEntry[] = [];
+  const queue: PokemonEntry[] = [root];
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    if (seen.has(cur.id)) continue;
+    seen.add(cur.id);
+    result.push(cur);
+    for (const evoId of cur.evolutions ?? []) {
+      const evo = pokemonById.get(evoId);
+      if (evo) queue.push(evo);
+    }
+  }
+  return result;
+}
+
+/** One clickable chip per evolution-line member, showing that member's current rank in this league. Clicking switches the selected species without recomputing anything (already cached). */
+function renderFamilyStrip(block: LeagueBlockRefs) {
+  if (family.length <= 1) {
+    block.familyStrip.hidden = true;
     return;
   }
-  const league = leagueById(els.leagueSelect.value);
-  const levelCap = els.bestBuddy.checked ? 51 : 50;
-  currentRankings = rankAllIvs(selected, league, levelCap);
-  els.rankBar.style.background = buildGaugeBackground(currentRankings);
-  renderMoves(selected);
+  block.familyStrip.hidden = false;
+  block.familyStrip.innerHTML = "";
+
+  const combosBySpecies = rankingsByLeague.get(block.leagueId)!;
+  for (const member of family) {
+    const combos = combosBySpecies.get(member.id);
+    if (!combos) continue;
+    const combo = findCombo(combos, currentIvs());
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "evo-chip";
+    if (selected && member.id === selected.id) btn.classList.add("evo-chip-current");
+    btn.textContent = `${member.name} #${combo.rank}`;
+    btn.addEventListener("click", () => selectFamilyMember(member));
+    block.familyStrip.appendChild(btn);
+  }
+}
+
+function renderLeagueBlock(block: LeagueBlockRefs) {
+  const combos = rankingsByLeague.get(block.leagueId)!.get(selected!.id)!;
+  const target = findCombo(combos, currentIvs());
+  const total = combos.length;
+
+  // Gauge background and recommended moves depend only on species + league
+  // (not IVs), but "species" can change without a structural rebuild when
+  // the user clicks a different stage in the family strip — so they're
+  // refreshed here rather than only once at structural-change time.
+  block.rankBar.style.background = buildGaugeBackground(combos);
+  renderMoves(block, selected!);
+
+  block.rankNum.textContent = `#${target.rank.toLocaleString()}`;
+  block.level.textContent = String(target.level);
+  block.cp.textContent = target.cp.toLocaleString();
+  block.sp.textContent = Math.round(target.statProduct).toLocaleString();
+  block.pct.textContent = `${target.percentage.toFixed(1)}%`;
+
+  const { label, tier } = tierFor(target);
+  block.tier.textContent = label;
+  block.tier.dataset.tier = tier;
+  block.rankSlider.style.setProperty("--thumb-color", TIER_COLOR_VAR[tier]);
+
+  block.rankSlider.value = String(Math.round(sliderPositionForRank(target.rank, total) * SLIDER_RESOLUTION));
+
+  renderFamilyStrip(block);
+  renderRankRows(block.rankingsBody, buildRankRows(combos, target.rank), target.rank);
+}
+
+function render() {
+  if (!selected || leagueBlocks.length === 0) return;
+
+  els.results.hidden = false;
+  els.emptyState.hidden = true;
+
+  for (const block of leagueBlocks) renderLeagueBlock(block);
+
+  updateUrl();
+}
+
+function activeLeagueIds(): string[] {
+  return Array.from(els.leagueChecks)
+    .filter((cb) => cb.checked)
+    .map((cb) => cb.value);
+}
+
+/** Never let the user uncheck every league — falls back to re-checking the box that was just unchecked. */
+function ensureAtLeastOneLeagueChecked(fallback: HTMLInputElement) {
+  if (activeLeagueIds().length === 0) fallback.checked = true;
+}
+
+function updateUrl() {
+  if (!selected) return;
+  const ivs = currentIvs();
+  const params = new URLSearchParams({
+    p: selected.id,
+    l: activeLeagueIds().join(","),
+    iv: `${ivs.atk}-${ivs.def}-${ivs.hp}`,
+  });
+  if (els.bestBuddy.checked) params.set("bb", "1");
+  history.replaceState(null, "", `?${params.toString()}`);
+}
+
+function buildLeagueBlock(league: League): LeagueBlockRefs {
+  const fragment = els.leagueBlockTemplate.content.cloneNode(true) as DocumentFragment;
+  const root = fragment.querySelector(".league-block") as HTMLElement;
+  root.querySelector(".league-block-title")!.textContent = league.label;
+
+  const block: LeagueBlockRefs = {
+    leagueId: league.id,
+    root,
+    familyStrip: root.querySelector(".family-strip") as HTMLElement,
+    rankNum: root.querySelector(".result-rank-num") as HTMLElement,
+    tier: root.querySelector(".tier-badge") as HTMLElement,
+    rankBar: root.querySelector(".rank-bar") as HTMLElement,
+    rankSlider: root.querySelector(".rank-bar-slider") as HTMLInputElement,
+    level: root.querySelector(".result-level") as HTMLElement,
+    cp: root.querySelector(".result-cp") as HTMLElement,
+    sp: root.querySelector(".result-sp") as HTMLElement,
+    pct: root.querySelector(".result-pct") as HTMLElement,
+    movesBlock: root.querySelector(".moves-block") as HTMLElement,
+    movesFast: root.querySelector(".moves-fast") as HTMLElement,
+    movesCharged: root.querySelector(".moves-charged") as HTMLElement,
+    rankingsBody: root.querySelector(".rankings-body") as HTMLElement,
+  };
+
+  // Rank explorer slider: dragging it is just another way to pick a combo,
+  // same as typing IVs or clicking a table row — it sets the real query state.
+  block.rankSlider.addEventListener("input", () => {
+    const position = Number(block.rankSlider.value) / SLIDER_RESOLUTION;
+    const combos = rankingsByLeague.get(block.leagueId)!.get(selected!.id)!;
+    const rank = rankForSliderPosition(position, combos.length);
+    const combo = combos[rank - 1];
+    if (combo) applyCombo(combo);
+  });
+
+  els.results.appendChild(root);
+  return block;
+}
+
+function selectFamilyMember(entry: PokemonEntry) {
+  selected = entry;
+  els.pokemonInput.value = entry.name;
   render();
 }
 
-/** Re-render against the existing ranking table — call on IV edits, row clicks, slider drags. */
+/** Recompute every active league's full ranking table for the whole evolution line — call only when species/leagues/level-cap change. */
+function onStructuralChange() {
+  if (!selected) {
+    els.results.hidden = true;
+    els.emptyState.hidden = false;
+    return;
+  }
+
+  family = familyOf(selected);
+  const levelCap = els.bestBuddy.checked ? 51 : 50;
+  const leagueIds = activeLeagueIds();
+
+  rankingsByLeague = new Map();
+  for (const leagueId of leagueIds) {
+    const league = leagueById(leagueId);
+    const perSpecies = new Map<string, RankedCombo[]>();
+    for (const member of family) perSpecies.set(member.id, rankAllIvs(member, league, levelCap));
+    rankingsByLeague.set(leagueId, perSpecies);
+  }
+
+  els.results.innerHTML = "";
+  leagueBlocks = leagueIds.map((id) => buildLeagueBlock(leagueById(id)));
+
+  render();
+}
+
+/** Re-render against the existing ranking tables — call on IV edits, row clicks, slider drags. */
 function onQueryChange() {
   if (!selected) return;
   render();
 }
 
-function evoGroup(label: string, entries: PokemonEntry[]): HTMLElement {
-  const wrap = document.createElement("span");
-  wrap.className = "evo-group";
-
-  const labelEl = document.createElement("span");
-  labelEl.className = "evo-label";
-  labelEl.textContent = label;
-  wrap.appendChild(labelEl);
-
-  for (const entry of entries) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "evo-chip";
-    btn.textContent = entry.name;
-    btn.addEventListener("click", () => chooseSpecies(entry));
-    wrap.appendChild(btn);
-  }
-  return wrap;
-}
-
-// "Evolves from/into" chips — same IVs, different base stats, one click.
-// See design-doc.md section 12: most searches for a pre-evolution are
-// really about how it ranks once evolved.
-function renderEvolutionLinks(entry: PokemonEntry) {
-  els.evolutionLinks.innerHTML = "";
-
-  const parent = entry.parent ? pokemonById.get(entry.parent) : undefined;
-  if (parent) els.evolutionLinks.appendChild(evoGroup("Evolves from", [parent]));
-
-  const evolutions = (entry.evolutions ?? []).map((id) => pokemonById.get(id)).filter((p): p is PokemonEntry => !!p);
-  if (evolutions.length > 0) els.evolutionLinks.appendChild(evoGroup("Evolves into", evolutions));
-
-  els.evolutionLinks.hidden = els.evolutionLinks.children.length === 0;
-}
-
 function selectPokemon(entry: PokemonEntry) {
   selected = entry;
-  renderEvolutionLinks(entry);
   onStructuralChange();
 }
 
@@ -348,20 +454,16 @@ for (const stat of ["atk", "def", "hp"] as const) {
   });
 }
 
-// League + Best Buddy change the CP cap / level cap, so they need a full
+// Leagues + Best Buddy change the CP cap / level cap, so they need a full
 // re-rank, not just a lookup.
-els.leagueSelect.addEventListener("change", onStructuralChange);
+els.leagueChecks.forEach((cb) => {
+  cb.addEventListener("change", () => {
+    ensureAtLeastOneLeagueChecked(cb);
+    onStructuralChange();
+  });
+});
 els.bestBuddy.addEventListener("change", onStructuralChange);
 els.form.addEventListener("submit", (e) => e.preventDefault());
-
-// Rank explorer slider: dragging it is just another way to pick a combo,
-// same as typing IVs or clicking a table row — it sets the real query state.
-els.rankSlider.addEventListener("input", () => {
-  const position = Number(els.rankSlider.value) / SLIDER_RESOLUTION;
-  const rank = rankForSliderPosition(position, currentRankings.length);
-  const combo = currentRankings[rank - 1];
-  if (combo) applyCombo(combo);
-});
 
 // Pokemon combobox
 createCombobox({
@@ -376,7 +478,14 @@ createCombobox({
 
 // Restore state from the URL (shareable/bookmarkable links), then load data.
 const params = new URLSearchParams(location.search);
-if (params.has("l")) els.leagueSelect.value = params.get("l")!;
+const leagueParam = params.get("l");
+if (leagueParam) {
+  const ids = new Set(leagueParam.split(",").filter(Boolean));
+  els.leagueChecks.forEach((cb) => {
+    cb.checked = ids.has(cb.value);
+  });
+  ensureAtLeastOneLeagueChecked(els.leagueChecks[0]!);
+}
 if (params.get("bb") === "1") els.bestBuddy.checked = true;
 const ivParam = params.get("iv");
 if (ivParam) {

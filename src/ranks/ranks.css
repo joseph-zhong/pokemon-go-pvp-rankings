@@ -78,8 +78,26 @@ input[type="number"]:focus-visible {
   border-radius: 4px;
 }
 
-.result {
+.league-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.league-checks .checkbox-field {
+  padding-bottom: 0;
+}
+
+.results {
   margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.league-block-title {
+  font-size: 15px;
+  margin: 0;
 }
 
 .result-top {
@@ -232,30 +250,21 @@ input[type="number"]:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
-.evolution-links {
+/* Evolution-line strip: one clickable chip per stage, showing that stage's
+   rank in this league, so entering the first Pokemon of a line shows the
+   whole line at once (see design-doc.md section 12) instead of requiring a
+   click per evolution. */
+.family-strip {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  margin-top: 10px;
-}
-
-.evo-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.evo-label {
-  font-size: 12px;
-  color: var(--ink-soft);
-  text-transform: none;
-  letter-spacing: normal;
-  font-weight: 500;
+  margin-bottom: 16px;
 }
 
 .evo-chip {
   font: inherit;
+  font-variant-numeric: tabular-nums;
   font-size: 13px;
   font-weight: 600;
   color: var(--accent);
@@ -268,6 +277,11 @@ input[type="number"]:focus-visible {
 
 .evo-chip:hover {
   filter: brightness(1.08);
+}
+
+.evo-chip-current {
+  background: var(--accent);
+  color: var(--panel);
 }
 
 .moves-block {

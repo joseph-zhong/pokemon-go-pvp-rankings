@@ -36,17 +36,25 @@
             />
             <ul id="pokemon-listbox" class="combobox-list" role="listbox" hidden></ul>
           </div>
-          <div id="evolution-links" class="evolution-links" hidden></div>
         </div>
 
         <div class="field-row">
           <div class="field">
-            <label for="league-select">League</label>
-            <select id="league-select">
-              <option value="great">Great League (CP 1500)</option>
-              <option value="ultra">Ultra League (CP 2500)</option>
-              <option value="master">Master League (no cap)</option>
-            </select>
+            <span class="field-label">Leagues</span>
+            <div class="league-checks">
+              <label class="checkbox-field">
+                <input class="league-check" type="checkbox" value="great" checked />
+                Great League
+              </label>
+              <label class="checkbox-field">
+                <input class="league-check" type="checkbox" value="ultra" checked />
+                Ultra League
+              </label>
+              <label class="checkbox-field">
+                <input class="league-check" type="checkbox" value="master" />
+                Master League
+              </label>
+            </div>
           </div>
           <label class="checkbox-field">
             <input id="best-buddy" type="checkbox" />
@@ -86,82 +94,87 @@
         </div>
       </form>
 
-      <section id="result" class="card result" hidden aria-live="polite">
-        <div class="result-top">
-          <div class="result-rank">
-            <span id="result-rank-num" class="result-rank-num">—</span>
-            <span class="result-rank-total">/ 4096</span>
+      <template id="league-block-template">
+        <section class="card league-block" aria-live="polite">
+          <h2 class="league-block-title"></h2>
+          <div class="family-strip" hidden></div>
+          <div class="result-top">
+            <div class="result-rank">
+              <span class="result-rank-num">—</span>
+              <span class="result-rank-total">/ 4096</span>
+            </div>
+            <span class="tier-badge">—</span>
           </div>
-          <span id="result-tier" class="tier-badge">—</span>
-        </div>
-        <div class="rank-bar" id="rank-bar">
-          <input
-            id="rank-slider"
-            type="range"
-            min="0"
-            max="1000"
-            step="1"
-            value="1000"
-            class="rank-bar-slider"
-            aria-label="Drag to browse rankings (logarithmic — most of the range is the top ranks)"
-          />
-        </div>
-        <div class="rank-bar-ends">
-          <span>Worst (#4096)</span>
-          <span>Best (#1)</span>
-        </div>
+          <div class="rank-bar">
+            <input
+              type="range"
+              min="0"
+              max="1000"
+              step="1"
+              value="1000"
+              class="rank-bar-slider"
+              aria-label="Drag to browse rankings (logarithmic — most of the range is the top ranks)"
+            />
+          </div>
+          <div class="rank-bar-ends">
+            <span>Worst (#4096)</span>
+            <span>Best (#1)</span>
+          </div>
 
-        <dl class="result-stats">
-          <div>
-            <dt>Level</dt>
-            <dd id="result-level">—</dd>
-          </div>
-          <div>
-            <dt>CP</dt>
-            <dd id="result-cp">—</dd>
-          </div>
-          <div>
-            <dt>Stat product</dt>
-            <dd id="result-sp">—</dd>
-          </div>
-          <div>
-            <dt>Percentage</dt>
-            <dd id="result-pct">—</dd>
-          </div>
-        </dl>
-
-        <div id="moves-block" class="moves-block" hidden>
-          <h2 class="rank-tables-title">Recommended moves</h2>
-          <dl class="moves-list">
+          <dl class="result-stats">
             <div>
-              <dt>Fast</dt>
-              <dd id="moves-fast">—</dd>
+              <dt>Level</dt>
+              <dd class="result-level">—</dd>
             </div>
             <div>
-              <dt>Charged</dt>
-              <dd id="moves-charged">—</dd>
+              <dt>CP</dt>
+              <dd class="result-cp">—</dd>
+            </div>
+            <div>
+              <dt>Stat product</dt>
+              <dd class="result-sp">—</dd>
+            </div>
+            <div>
+              <dt>Percentage</dt>
+              <dd class="result-pct">—</dd>
             </div>
           </dl>
-        </div>
 
-        <div class="rank-tables">
-          <h2 class="rank-tables-title">Top 5 &amp; nearby ranks</h2>
-          <div class="table-scroll">
-            <table class="rank-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>IVs</th>
-                  <th>Lvl</th>
-                  <th>CP</th>
-                  <th>%</th>
-                </tr>
-              </thead>
-              <tbody id="rankings-body"></tbody>
-            </table>
+          <div class="moves-block" hidden>
+            <h3 class="rank-tables-title">Recommended moves</h3>
+            <dl class="moves-list">
+              <div>
+                <dt>Fast</dt>
+                <dd class="moves-fast">—</dd>
+              </div>
+              <div>
+                <dt>Charged</dt>
+                <dd class="moves-charged">—</dd>
+              </div>
+            </dl>
           </div>
-        </div>
-      </section>
+
+          <div class="rank-tables">
+            <h3 class="rank-tables-title">Top 5 &amp; nearby ranks</h3>
+            <div class="table-scroll">
+              <table class="rank-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>IVs</th>
+                    <th>Lvl</th>
+                    <th>CP</th>
+                    <th>%</th>
+                  </tr>
+                </thead>
+                <tbody class="rankings-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </template>
+
+      <div id="results" class="results" hidden></div>
 
       <p id="empty-state" class="empty-state">Search for a Pokemon above to see its rank.</p>
 
