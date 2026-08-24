@@ -1,5 +1,49 @@
 /* /ranks/ page only. Shared tokens/chrome/combobox live in shared/base.css. */
 
+:root {
+  --type-normal: #e8e6de;
+  --type-fire: #ffe0d6;
+  --type-water: #dceefb;
+  --type-electric: #fff6cc;
+  --type-grass: #dff3dc;
+  --type-ice: #e0f7f7;
+  --type-fighting: #f8dede;
+  --type-poison: #ecdcf2;
+  --type-ground: #f0e4cb;
+  --type-flying: #e6e6fa;
+  --type-psychic: #fbdceb;
+  --type-bug: #e9f0c7;
+  --type-rock: #ede6d4;
+  --type-ghost: #e3dcf0;
+  --type-dragon: #dce0fa;
+  --type-dark: #dad9dd;
+  --type-steel: #e2e6ea;
+  --type-fairy: #fce0ec;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --type-normal: #302f2b;
+    --type-fire: #4a332e;
+    --type-water: #253a47;
+    --type-electric: #4a4626;
+    --type-grass: #2c3f2a;
+    --type-ice: #26403f;
+    --type-fighting: #402b2b;
+    --type-poison: #382a42;
+    --type-ground: #3c3527;
+    --type-flying: #2e2e44;
+    --type-psychic: #402a38;
+    --type-bug: #333c22;
+    --type-rock: #3a3527;
+    --type-ghost: #2e2840;
+    --type-dragon: #262c48;
+    --type-dark: #2a2930;
+    --type-steel: #2a3034;
+    --type-fairy: #402a34;
+  }
+}
+
 .iv-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -66,214 +110,155 @@ input[type="number"]:focus-visible {
   outline-offset: 1px;
 }
 
-.iv-hint {
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--ink-soft);
-}
-
-.iv-hint code {
-  background: var(--accent-soft);
-  padding: 0.1em 0.4em;
-  border-radius: 4px;
-}
-
-.result {
+#moves-card {
   margin-top: 20px;
 }
 
-.result-top {
+.evolution-results {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.evo-stage-current {
+  border-color: var(--accent);
+}
+
+.evo-stage-card[data-type="normal"] {
+  background: var(--type-normal);
+}
+.evo-stage-card[data-type="fire"] {
+  background: var(--type-fire);
+}
+.evo-stage-card[data-type="water"] {
+  background: var(--type-water);
+}
+.evo-stage-card[data-type="electric"] {
+  background: var(--type-electric);
+}
+.evo-stage-card[data-type="grass"] {
+  background: var(--type-grass);
+}
+.evo-stage-card[data-type="ice"] {
+  background: var(--type-ice);
+}
+.evo-stage-card[data-type="fighting"] {
+  background: var(--type-fighting);
+}
+.evo-stage-card[data-type="poison"] {
+  background: var(--type-poison);
+}
+.evo-stage-card[data-type="ground"] {
+  background: var(--type-ground);
+}
+.evo-stage-card[data-type="flying"] {
+  background: var(--type-flying);
+}
+.evo-stage-card[data-type="psychic"] {
+  background: var(--type-psychic);
+}
+.evo-stage-card[data-type="bug"] {
+  background: var(--type-bug);
+}
+.evo-stage-card[data-type="rock"] {
+  background: var(--type-rock);
+}
+.evo-stage-card[data-type="ghost"] {
+  background: var(--type-ghost);
+}
+.evo-stage-card[data-type="dragon"] {
+  background: var(--type-dragon);
+}
+.evo-stage-card[data-type="dark"] {
+  background: var(--type-dark);
+}
+.evo-stage-card[data-type="steel"] {
+  background: var(--type-steel);
+}
+.evo-stage-card[data-type="fairy"] {
+  background: var(--type-fairy);
+}
+
+.evo-stage-header {
+  font: inherit;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
 }
 
-.result-rank {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
+.evo-stage-current .evo-stage-header {
+  cursor: default;
 }
 
-.result-rank-num {
-  font-size: 40px;
+.evo-stage-header:hover {
+  color: var(--accent);
+}
+
+.evo-stage-current .evo-stage-header:hover {
+  color: inherit;
+}
+
+.evo-stage-name {
+  font-size: 17px;
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
 }
 
-.result-rank-total {
+.evo-stage-dex {
+  font-size: 13px;
   color: var(--ink-soft);
-  font-size: 15px;
+  font-variant-numeric: tabular-nums;
 }
 
-.tier-badge {
+.league-card-subtitle {
   font-size: 12.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--tier-fair) 18%, transparent);
-  color: var(--tier-fair);
-}
-
-.tier-badge[data-tier="good"] {
-  background: color-mix(in srgb, var(--tier-good) 18%, transparent);
-  color: var(--tier-good);
-}
-
-.tier-badge[data-tier="great"] {
-  background: color-mix(in srgb, var(--tier-great) 18%, transparent);
-  color: var(--tier-great);
-}
-
-.tier-badge[data-tier="top"] {
-  background: color-mix(in srgb, var(--tier-top) 20%, transparent);
-  color: var(--tier-top);
-}
-
-/* A static 4-color gauge (Fair/Good/Great/Top 10 — set as a background
-   gradient in JS, since the % thresholds land at a different rank for
-   every species) with a single draggable marker, not a second growing
-   fill. The slider's own value is a log-scaled position (0=worst,
-   1000=best rank #1), not the rank itself — see sliderPositionForRank in
-   main.ts — so most of the drag range is spent distinguishing top ranks
-   instead of the long, mostly-flat tail near #4096. The gauge's color
-   stops are computed in that same log-scaled coordinate, so the marker
-   and the colors always agree. */
-.rank-bar {
-  position: relative;
-  margin-top: 14px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--tier-fair);
-}
-
-.rank-bar-slider {
-  position: absolute;
-  inset: -7px 0;
-  width: 100%;
-  height: 20px;
-  margin: 0;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-  outline: none;
-}
-
-.rank-bar-slider:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-  border-radius: 999px;
-}
-
-.rank-bar-slider::-webkit-slider-runnable-track {
-  background: transparent;
-}
-
-.rank-bar-slider::-moz-range-track {
-  background: transparent;
-}
-
-.rank-bar-slider::-webkit-slider-thumb {
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  margin-top: 1px;
-  border-radius: 50%;
-  background: var(--thumb-color, var(--accent));
-  border: 2px solid var(--panel);
-  box-shadow: 0 0 0 1px var(--line);
-  cursor: pointer;
-}
-
-.rank-bar-slider::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--thumb-color, var(--accent));
-  border: 2px solid var(--panel);
-  box-shadow: 0 0 0 1px var(--line);
-  cursor: pointer;
-}
-
-.rank-bar-ends {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 4px;
-  font-size: 11.5px;
   color: var(--ink-soft);
+  margin: 0 0 8px;
 }
 
-.result-stats {
-  margin: 18px 0 0;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 14px 20px;
-}
-
-.result-stats div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.result-stats dt {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--ink-soft);
-}
-
-.result-stats dd {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.evolution-links {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.evo-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.evo-label {
-  font-size: 12px;
-  color: var(--ink-soft);
+#moves-league-note {
   text-transform: none;
   letter-spacing: normal;
   font-weight: 500;
 }
 
-.evo-chip {
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border: none;
-  border-radius: 999px;
-  padding: 4px 12px;
-  cursor: pointer;
+.league-rank-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.evo-chip:hover {
-  filter: brightness(1.08);
+.league-rank-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.moves-block {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid var(--line);
+.league-rank-row dt {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.league-rank-value {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .moves-list {
@@ -302,78 +287,3 @@ input[type="number"]:focus-visible {
   font-size: 15px;
 }
 
-.moves-list .alt {
-  color: var(--ink-soft);
-  font-size: 13px;
-}
-
-.rank-tables {
-  margin-top: 24px;
-}
-
-.rank-tables-title {
-  font-size: 12.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--ink-soft);
-  margin: 0 0 8px;
-}
-
-.table-scroll {
-  overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-
-.rank-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12.5px;
-}
-
-.rank-table th,
-.rank-table td {
-  padding: 6px 8px;
-  text-align: left;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.rank-table th {
-  color: var(--ink-soft);
-  font-weight: 600;
-  border-bottom: 1px solid var(--line);
-}
-
-.rank-table tbody tr {
-  cursor: pointer;
-}
-
-.rank-table tbody tr:hover {
-  background: var(--accent-soft);
-}
-
-.rank-table tbody tr.current-row {
-  background: var(--accent-soft);
-  font-weight: 700;
-}
-
-.rank-table tbody tr:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-
-.rank-table tbody tr.gap-row {
-  cursor: default;
-}
-
-.rank-table tbody tr.gap-row:hover {
-  background: none;
-}
-
-.rank-table tbody tr.gap-row td {
-  text-align: center;
-  color: var(--ink-soft);
-  letter-spacing: 0.15em;
-}

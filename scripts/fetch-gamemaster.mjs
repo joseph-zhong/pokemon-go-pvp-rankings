@@ -36,6 +36,8 @@ const pokemon = gamemaster.pokemon
     atk: p.baseStats.atk,
     def: p.baseStats.def,
     hp: p.baseStats.hp,
+    // Primary type, for the evolution card background tint.
+    type: p.types?.[0] ?? "none",
     // Direct previous/next evolution stage(s), straight from PvPoke's family
     // graph — lets the UI offer "Evolves from/into" links. See
     // design-doc.md section 12 for why this needs no extra data source.
