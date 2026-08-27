@@ -8,6 +8,7 @@ import {
   firstRankBelow,
   leagueById,
   rankAllIvs,
+  rankTableRows,
 } from "./rank";
 
 // Reference values below were computed with an independent Python
@@ -140,5 +141,49 @@ describe("evolutionExceedsCap", () => {
 
   it("does not flag evolving into the same base stats (nothing changes, cap can't be newly exceeded)", () => {
     expect(evolutionExceedsCap(AZUMARILL, AZUMARILL, IVS, 1500)).toBe(false);
+  });
+});
+
+describe("rankTableRows", () => {
+  // Only .rank matters here, so fake combos keep the expectations readable.
+  const all = Array.from({ length: 4096 }, (_, i) => ({ rank: i + 1 }) as never);
+  const ranks = (rows: ReturnType<typeof rankTableRows>) =>
+    rows.map((row) => (row.kind === "gap" ? `gap:${row.skipped}` : `#${row.combo.rank}`));
+
+  it("collapses to one contiguous block when the query is inside the top 5", () => {
+    expect(ranks(rankTableRows(all, 3))).toEqual(["#1", "#2", "#3", "#4", "#5", "#6", "#7", "#8"]);
+  });
+
+  it("collapses when the window starts exactly where the top block ends", () => {
+    // rank 11 -> window starts at #6, adjacent to the top 5: no gap.
+    expect(ranks(rankTableRows(all, 11))).toEqual([
+      "#1", "#2", "#3", "#4", "#5", "#6", "#7", "#8", "#9", "#10",
+      "#11", "#12", "#13", "#14", "#15", "#16",
+    ]);
+  });
+
+  it("inserts a single gap row once the window pulls away from the top", () => {
+    expect(ranks(rankTableRows(all, 12))).toEqual([
+      "#1", "#2", "#3", "#4", "#5", "gap:1",
+      "#7", "#8", "#9", "#10", "#11", "#12", "#13", "#14", "#15", "#16", "#17",
+    ]);
+  });
+
+  it("reports how many ranks the gap hides", () => {
+    const rows = rankTableRows(all, 2000);
+    expect(rows[5]).toEqual({ kind: "gap", skipped: 1989 });
+    expect(ranks(rows).slice(6, 8)).toEqual(["#1995", "#1996"]);
+  });
+
+  it("never runs past the last rank", () => {
+    const shown = ranks(rankTableRows(all, 4096));
+    expect(shown[shown.length - 1]).toBe("#4096");
+  });
+
+  it("never shows the same rank twice", () => {
+    for (const rank of [1, 5, 6, 10, 11, 12, 50, 4096]) {
+      const shown = ranks(rankTableRows(all, rank));
+      expect(new Set(shown).size).toBe(shown.length);
+    }
   });
 });

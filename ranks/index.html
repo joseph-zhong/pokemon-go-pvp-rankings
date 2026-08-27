@@ -111,38 +111,18 @@
       <section id="rank-tables-card" class="card" hidden aria-live="polite">
         <h2 class="league-card-subtitle">Top 5 &amp; nearby ranks</h2>
         <p class="moves-league-note" id="rank-tables-note"></p>
-        <div class="rank-tables-grid">
-          <div>
-            <h3 class="rank-table-heading">Top 5</h3>
-            <table class="rank-table">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>IVs</th>
-                  <th>Level</th>
-                  <th>CP</th>
-                  <th>%</th>
-                </tr>
-              </thead>
-              <tbody id="rank-table-top5"></tbody>
-            </table>
-          </div>
-          <div>
-            <h3 class="rank-table-heading">Nearby ranks</h3>
-            <table class="rank-table">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>IVs</th>
-                  <th>Level</th>
-                  <th>CP</th>
-                  <th>%</th>
-                </tr>
-              </thead>
-              <tbody id="rank-table-nearby"></tbody>
-            </table>
-          </div>
-        </div>
+        <table class="rank-table">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>IVs</th>
+              <th>Level</th>
+              <th>CP</th>
+              <th>%</th>
+            </tr>
+          </thead>
+          <tbody id="rank-table-body"></tbody>
+        </table>
       </section>
 
       <p id="empty-state" class="empty-state">Search for a Pokemon above to see its rank.</p>

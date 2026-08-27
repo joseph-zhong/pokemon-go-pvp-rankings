@@ -449,30 +449,9 @@ input[type="number"]:focus-visible {
   font-size: 15px;
 }
 
-.rank-tables-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-top: 12px;
-}
-
-@media (max-width: 520px) {
-  .rank-tables-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.rank-table-heading {
-  font-size: 12.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--ink-soft);
-  margin: 0 0 8px;
-}
-
 .rank-table {
   width: 100%;
+  margin-top: 12px;
   border-collapse: collapse;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
@@ -509,3 +488,9 @@ input[type="number"]:focus-visible {
   font-weight: 700;
 }
 
+.rank-table-gap td {
+  text-align: left;
+  color: var(--ink-soft);
+  padding: 6px;
+  letter-spacing: 0.02em;
+}

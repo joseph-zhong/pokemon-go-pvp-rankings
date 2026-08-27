@@ -166,3 +166,31 @@ export function findCombo(all: readonly RankedCombo[], ivs: Ivs): RankedCombo {
   if (!combo) throw new Error(`No combo found for IVs ${ivs.atk}/${ivs.def}/${ivs.hp}`);
   return combo;
 }
+
+/** One row of the rank table: a real combo, or the elided stretch between the top block and the window around the current rank. */
+export type RankTableRow = { kind: "combo"; combo: RankedCombo } | { kind: "gap"; skipped: number };
+
+/**
+ * Rows for the single rank table: the top `topCount` combos, then a window
+ * of `radius` ranks either side of `targetRank`. When those two ranges
+ * touch or overlap (the query is at or near the top) they collapse into one
+ * contiguous block; otherwise a gap row records how many ranks were skipped.
+ */
+export function rankTableRows(
+  all: readonly RankedCombo[],
+  targetRank: number,
+  topCount = 5,
+  radius = 5,
+): RankTableRow[] {
+  const windowStart = Math.max(0, targetRank - 1 - radius);
+  const windowEnd = Math.min(all.length, targetRank + radius);
+  const row = (combo: RankedCombo): RankTableRow => ({ kind: "combo", combo });
+
+  if (windowStart <= topCount) return all.slice(0, windowEnd).map(row);
+
+  return [
+    ...all.slice(0, topCount).map(row),
+    { kind: "gap", skipped: windowStart - topCount },
+    ...all.slice(windowStart, windowEnd).map(row),
+  ];
+}

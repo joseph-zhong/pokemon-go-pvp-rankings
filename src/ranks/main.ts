@@ -1,7 +1,7 @@
 import "../shared/base.css";
 import "./ranks.css";
 import { MIN_LEVEL } from "../calc/cpm";
-import { bestLevelForCap, calcCp, evolutionExceedsCap, findCombo, LEAGUES, rankAllIvs, type Ivs, type League, type RankedCombo } from "../calc/rank";
+import { bestLevelForCap, calcCp, evolutionExceedsCap, findCombo, LEAGUES, rankAllIvs, rankTableRows, type Ivs, type League, type RankedCombo, type RankTableRow } from "../calc/rank";
 import { loadMoves, loadMovesets, type MoveInfo, type MovesetsBySpecies } from "../data/moves";
 import { loadPokemon, type PokemonEntry } from "../data/pokemon";
 import { createCombobox } from "../ui/combobox";
@@ -23,8 +23,7 @@ const els = {
   movesCharged: document.getElementById("moves-charged") as HTMLElement,
   rankTablesCard: document.getElementById("rank-tables-card") as HTMLElement,
   rankTablesNote: document.getElementById("rank-tables-note") as HTMLElement,
-  rankTableTop5: document.getElementById("rank-table-top5") as HTMLTableSectionElement,
-  rankTableNearby: document.getElementById("rank-table-nearby") as HTMLTableSectionElement,
+  rankTableBody: document.getElementById("rank-table-body") as HTMLTableSectionElement,
 };
 
 interface StageCardHandle {
@@ -324,30 +323,38 @@ function renderMoves(entry: PokemonEntry, league: League) {
 }
 
 /**
- * Top 5 (best combos overall) and Nearby (a window of 5-better/5-worse
- * around the current query) — both read straight off the same rank-sorted
- * `rankAllIvs` array already built for the (stage, league) pair shown for
- * moves, so this costs nothing extra to compute. Each row is clickable —
- * loads that combo's IVs into the form, same as typing them directly.
+ * One table holding the top 5 combos and a window of 5-better/5-worse
+ * around the current query, with a gap row where ranks are elided (or no
+ * gap at all when the query is near the top and the two blocks merge).
+ * Reads straight off the same rank-sorted `rankAllIvs` array already built
+ * for the (stage, league) pair shown for moves, so this costs nothing extra
+ * to compute. Each combo row is clickable — loads that combo's IVs into the
+ * form, same as typing them directly.
  */
 function renderRankTables(entry: PokemonEntry, league: League, ivs: Ivs) {
   const all = rankingsByStage[entry.id]![league.id]!;
   const target = findCombo(all, ivs);
 
   els.rankTablesCard.hidden = false;
-  els.rankTablesNote.textContent = `Showing: ${entry.name} · ${league.label}`;
+  els.rankTablesNote.textContent = `Showing: ${entry.name} · ${league.label} · rank #${target.rank.toLocaleString()} of ${all.length.toLocaleString()}`;
 
-  fillRankTable(els.rankTableTop5, all.slice(0, 5), target.rank);
-
-  const windowStart = Math.max(0, target.rank - 1 - 5);
-  const windowEnd = Math.min(all.length, target.rank - 1 + 5 + 1);
-  fillRankTable(els.rankTableNearby, all.slice(windowStart, windowEnd), target.rank);
+  fillRankTable(els.rankTableBody, rankTableRows(all, target.rank), target.rank);
 }
 
-function fillRankTable(tbody: HTMLTableSectionElement, combos: readonly RankedCombo[], currentRank: number) {
+function fillRankTable(tbody: HTMLTableSectionElement, rows: readonly RankTableRow[], currentRank: number) {
   tbody.innerHTML = "";
-  for (const combo of combos) {
+  for (const row of rows) {
     const tr = document.createElement("tr");
+    if (row.kind === "gap") {
+      tr.className = "rank-table-gap";
+      const td = el("td", `⋯ ${row.skipped.toLocaleString()} ranks hidden`) as HTMLTableCellElement;
+      td.colSpan = 5;
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      continue;
+    }
+
+    const combo = row.combo;
     tr.className = combo.rank === currentRank ? "rank-table-row rank-table-row-current" : "rank-table-row";
     tr.append(
       el("td", `#${combo.rank.toLocaleString()}`),
