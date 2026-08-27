@@ -1,6 +1,7 @@
 import "../shared/base.css";
 import "./ranks.css";
-import { evolutionExceedsCap, findCombo, LEAGUES, rankAllIvs, type Ivs, type League, type RankedCombo } from "../calc/rank";
+import { MIN_LEVEL } from "../calc/cpm";
+import { bestLevelForCap, calcCp, evolutionExceedsCap, findCombo, LEAGUES, rankAllIvs, type Ivs, type League, type RankedCombo } from "../calc/rank";
 import { loadMoves, loadMovesets, type MoveInfo, type MovesetsBySpecies } from "../data/moves";
 import { loadPokemon, type PokemonEntry } from "../data/pokemon";
 import { createCombobox } from "../ui/combobox";
@@ -10,6 +11,8 @@ const els = {
   form: document.getElementById("form") as HTMLFormElement,
   pokemonInput: document.getElementById("pokemon-input") as HTMLInputElement,
   pokemonList: document.getElementById("pokemon-listbox") as HTMLUListElement,
+  evoPrevBtn: document.getElementById("evo-prev-btn") as HTMLButtonElement,
+  evoNextBtn: document.getElementById("evo-next-btn") as HTMLButtonElement,
   bestBuddy: document.getElementById("best-buddy") as HTMLInputElement,
   evolutionResults: document.getElementById("evolution-results") as HTMLElement,
   emptyState: document.getElementById("empty-state") as HTMLElement,
@@ -23,11 +26,24 @@ const els = {
 interface StageCardHandle {
   root: HTMLElement;
   rankEls: Map<string, HTMLElement>;
-  capWarningEl: HTMLElement;
 }
 
-/** Builds one evolution stage's result card (header, league ranks) and appends it to #evolution-results. */
-function createStageCard(entry: PokemonEntry, isCurrent: boolean): StageCardHandle {
+interface LevelSliderHandle {
+  entry: PokemonEntry;
+  input: HTMLInputElement;
+  readout: HTMLElement;
+  greatMark: HTMLElement;
+  ultraMark: HTMLElement;
+}
+
+// Only one slider ever exists — for the current (searched) stage. See
+// design-doc.md: rank/CP vs. level for the *searched* species is the
+// question a slider actually answers well; per-stage sliders (one for
+// every evolution) turned out to be more UI than the question needed.
+let levelSlider: LevelSliderHandle | null = null;
+
+/** Builds one evolution stage's result card (header, league ranks) and appends it to #evolution-results. The current stage also gets the level/CP slider. */
+function createStageCard(entry: PokemonEntry, isCurrent: boolean, levelCap: number): StageCardHandle {
   const root = document.createElement("section");
   root.className = isCurrent ? "card evo-stage-card evo-stage-current" : "card evo-stage-card";
   root.dataset.type = entry.type;
@@ -48,13 +64,6 @@ function createStageCard(entry: PokemonEntry, isCurrent: boolean): StageCardHand
   header.appendChild(dex);
   root.appendChild(header);
 
-  // Only stages reached by evolving (not the searched species itself) can
-  // ever show this — see capWarningText.
-  const capWarningEl = document.createElement("p");
-  capWarningEl.className = "evo-cap-warning";
-  capWarningEl.hidden = true;
-  root.appendChild(capWarningEl);
-
   const rankList = document.createElement("dl");
   rankList.className = "league-rank-list";
   const rankEls = new Map<string, HTMLElement>();
@@ -72,22 +81,91 @@ function createStageCard(entry: PokemonEntry, isCurrent: boolean): StageCardHand
   }
   root.appendChild(rankList);
 
+  if (isCurrent) {
+    root.appendChild(buildLevelSlider(entry, levelCap));
+  }
+
   els.evolutionResults.appendChild(root);
 
-  return { root, rankEls, capWarningEl };
+  return { root, rankEls };
 }
 
-// Evolving never lowers a Pokemon's level, so if the *previous* stage was
-// powered up to its own optimal level for a capped league and then
-// evolved, the new form might exceed that same cap — permanently, since
-// there's no undoing an evolution. See design-doc.md and rank.ts's
-// evolutionExceedsCap for the real examples (Chansey -> Blissey etc.)
-// this is checked against.
-function capWarningText(from: PokemonEntry, to: PokemonEntry, ivs: Ivs): string {
-  const exceeded = LEAGUES.filter((l) => l.cpCap !== null && evolutionExceedsCap(from, to, ivs, l.cpCap!)).map((l) => l.label);
-  if (exceeded.length === 0) return "";
-  const caps = exceeded.length === 1 ? `${exceeded[0]} cap` : `${exceeded.join(" & ")} caps`;
-  return `Evolving from ${from.name} at its own optimal level exceeds the ${caps}.`;
+/** CP-by-level slider for the current stage, with Great/Ultra cap crossings marked on the track — lets you see exactly where evolving (or powering up) would cross a cap, instead of just being told yes/no. */
+function buildLevelSlider(entry: PokemonEntry, levelCap: number): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "level-cp-slider";
+
+  const track = document.createElement("div");
+  track.className = "level-cp-track";
+
+  const greatMark = document.createElement("div");
+  greatMark.className = "level-cp-mark";
+  const greatLabel = document.createElement("span");
+  greatLabel.className = "level-cp-mark-label";
+  greatLabel.textContent = "Great";
+  greatMark.appendChild(greatLabel);
+
+  const ultraMark = document.createElement("div");
+  ultraMark.className = "level-cp-mark";
+  const ultraLabel = document.createElement("span");
+  ultraLabel.className = "level-cp-mark-label";
+  ultraLabel.textContent = "Ultra";
+  ultraMark.appendChild(ultraLabel);
+
+  const input = document.createElement("input");
+  input.type = "range";
+  input.className = "level-cp-range";
+  input.min = String(MIN_LEVEL);
+  input.max = String(levelCap);
+  input.step = "0.5";
+  input.value = String(levelCap); // start fully powered up — drag down to find where CP crosses each cap
+  input.setAttribute("aria-label", "Level");
+
+  track.append(greatMark, ultraMark, input);
+  wrap.appendChild(track);
+
+  const readout = document.createElement("p");
+  readout.className = "level-cp-readout";
+  wrap.appendChild(readout);
+
+  levelSlider = { entry, input, readout, greatMark, ultraMark };
+  input.addEventListener("input", () => updateLevelReadout());
+
+  return wrap;
+}
+
+function updateLevelReadout() {
+  if (!levelSlider) return;
+  const level = Number(levelSlider.input.value);
+  const cp = calcCp(levelSlider.entry, currentIvs(), level);
+  levelSlider.readout.innerHTML = "";
+  levelSlider.readout.append("Level ", el("strong", String(level)), " · CP ", el("strong", cp.toLocaleString()));
+}
+
+function el(tag: string, text: string): HTMLElement {
+  const node = document.createElement(tag);
+  node.textContent = text;
+  return node;
+}
+
+/** Repositions the Great/Ultra marks for the current IVs/level cap and refreshes the live readout. Doesn't touch the slider's dragged position — only where it started (a fresh species/Best Buddy toggle) resets that, in onStructuralChange. */
+function updateLevelSlider(ivs: Ivs, levelCap: number) {
+  if (!levelSlider) return;
+  const { entry, input, greatMark, ultraMark } = levelSlider;
+
+  const positionMark = (markEl: HTMLElement, cap: number) => {
+    const crossLevel = bestLevelForCap(entry, ivs, cap, levelCap);
+    const neverExceeds = calcCp(entry, ivs, levelCap) <= cap;
+    markEl.hidden = neverExceeds;
+    if (!neverExceeds) {
+      const percent = ((crossLevel - MIN_LEVEL) / (levelCap - MIN_LEVEL)) * 100;
+      markEl.style.left = `${percent}%`;
+    }
+  };
+  positionMark(greatMark, 1500);
+  positionMark(ultraMark, 2500);
+
+  updateLevelReadout();
 }
 
 let pokemonList: PokemonEntry[] = [];
@@ -125,6 +203,7 @@ function render() {
   els.emptyState.hidden = true;
 
   const ivs = currentIvs();
+  const levelCap = els.bestBuddy.checked ? 51 : 50;
   let bestEntry: PokemonEntry | null = null;
   let bestLeague: League | null = null;
   let bestRank = Infinity;
@@ -135,7 +214,16 @@ function render() {
 
     for (const league of LEAGUES) {
       const target = findCombo(rankingsByLeague[league.id]!, ivs);
-      card.rankEls.get(league.id)!.textContent = `#${target.rank.toLocaleString()} / 4096`;
+      const dd = card.rankEls.get(league.id)!;
+      dd.textContent = `#${target.rank.toLocaleString()} / 4096`;
+
+      // Dim (don't hide, don't add separate warning text) a league's rank
+      // when evolving into this stage — from its immediate parent, at the
+      // parent's own optimal level — would exceed that league's cap.
+      // Master League has no cap, so it's never dimmed.
+      const impossibleAfterEvolve =
+        i > 0 && league.cpCap !== null && evolutionExceedsCap(chain[i - 1]!, entry, ivs, league.cpCap);
+      dd.classList.toggle("league-rank-value-dim", impossibleAfterEvolve);
 
       const isMovesCandidate = movesLeagueOverride === null || movesLeagueOverride === league.id;
       if (isMovesCandidate && target.rank < bestRank) {
@@ -144,13 +232,9 @@ function render() {
         bestLeague = league;
       }
     }
-
-    if (i > 0) {
-      const text = capWarningText(chain[i - 1]!, entry, ivs);
-      card.capWarningEl.textContent = text;
-      card.capWarningEl.hidden = text === "";
-    }
   });
+
+  updateLevelSlider(ivs, levelCap);
 
   for (const btn of els.movesLeagueToggle) {
     btn.setAttribute("aria-pressed", String((btn.dataset.league || null) === movesLeagueOverride));
@@ -238,13 +322,18 @@ function onStructuralChange() {
   }
 
   chain = forwardEvolutionChain(selected);
-  els.evolutionResults.innerHTML = "";
-  stageCards = chain.map((entry) => createStageCard(entry, entry.id === selected!.id));
-
   const levelCap = els.bestBuddy.checked ? 51 : 50;
+
+  els.evolutionResults.innerHTML = "";
+  levelSlider = null;
+  stageCards = chain.map((entry) => createStageCard(entry, entry.id === selected!.id, levelCap));
+
   rankingsByStage = Object.fromEntries(
     chain.map((entry) => [entry.id, Object.fromEntries(LEAGUES.map((league) => [league.id, rankAllIvs(entry, league, levelCap)]))]),
   );
+
+  els.evoPrevBtn.disabled = !selected.parent;
+  els.evoNextBtn.disabled = !(selected.evolutions && selected.evolutions.length > 0);
 
   render();
 }
@@ -292,6 +381,21 @@ for (const stat of ["atk", "def", "hp"] as const) {
 // Best Buddy changes the level cap, so it needs a full re-rank, not just a lookup.
 els.bestBuddy.addEventListener("change", onStructuralChange);
 els.form.addEventListener("submit", (e) => e.preventDefault());
+
+// Step one evolution stage at a time without retyping a search — same idea
+// as the IV steppers' +/-. Branching lines (Eevee) step to the first
+// listed evolution; picking a specific branch still works via that stage's
+// card header. Buttons disable themselves (see onStructuralChange) rather
+// than doing nothing, so there's no dead end at either end of a chain.
+els.evoPrevBtn.addEventListener("click", () => {
+  const parent = selected?.parent ? pokemonById.get(selected.parent) : undefined;
+  if (parent) chooseSpecies(parent);
+});
+els.evoNextBtn.addEventListener("click", () => {
+  const nextId = selected?.evolutions?.[0];
+  const next = nextId ? pokemonById.get(nextId) : undefined;
+  if (next) chooseSpecies(next);
+});
 
 // Moves league toggle: "Best" (empty data-league) clears the override back
 // to whole-line auto-pick; a specific league scopes the auto-pick to just
