@@ -1,6 +1,6 @@
 import "../shared/base.css";
 import "./ranks.css";
-import { findCombo, LEAGUES, rankAllIvs, type League, type RankedCombo } from "../calc/rank";
+import { evolutionExceedsCap, findCombo, LEAGUES, rankAllIvs, type Ivs, type League, type RankedCombo } from "../calc/rank";
 import { loadMoves, loadMovesets, type MoveInfo, type MovesetsBySpecies } from "../data/moves";
 import { loadPokemon, type PokemonEntry } from "../data/pokemon";
 import { createCombobox } from "../ui/combobox";
@@ -14,6 +14,7 @@ const els = {
   evolutionResults: document.getElementById("evolution-results") as HTMLElement,
   emptyState: document.getElementById("empty-state") as HTMLElement,
   movesCard: document.getElementById("moves-card") as HTMLElement,
+  movesLeagueToggle: document.querySelectorAll<HTMLButtonElement>(".league-toggle-btn"),
   movesLeagueNote: document.getElementById("moves-league-note") as HTMLElement,
   movesFast: document.getElementById("moves-fast") as HTMLElement,
   movesCharged: document.getElementById("moves-charged") as HTMLElement,
@@ -22,6 +23,7 @@ const els = {
 interface StageCardHandle {
   root: HTMLElement;
   rankEls: Map<string, HTMLElement>;
+  capWarningEl: HTMLElement;
 }
 
 /** Builds one evolution stage's result card (header, league ranks) and appends it to #evolution-results. */
@@ -46,6 +48,13 @@ function createStageCard(entry: PokemonEntry, isCurrent: boolean): StageCardHand
   header.appendChild(dex);
   root.appendChild(header);
 
+  // Only stages reached by evolving (not the searched species itself) can
+  // ever show this — see capWarningText.
+  const capWarningEl = document.createElement("p");
+  capWarningEl.className = "evo-cap-warning";
+  capWarningEl.hidden = true;
+  root.appendChild(capWarningEl);
+
   const rankList = document.createElement("dl");
   rankList.className = "league-rank-list";
   const rankEls = new Map<string, HTMLElement>();
@@ -65,7 +74,20 @@ function createStageCard(entry: PokemonEntry, isCurrent: boolean): StageCardHand
 
   els.evolutionResults.appendChild(root);
 
-  return { root, rankEls };
+  return { root, rankEls, capWarningEl };
+}
+
+// Evolving never lowers a Pokemon's level, so if the *previous* stage was
+// powered up to its own optimal level for a capped league and then
+// evolved, the new form might exceed that same cap — permanently, since
+// there's no undoing an evolution. See design-doc.md and rank.ts's
+// evolutionExceedsCap for the real examples (Chansey -> Blissey etc.)
+// this is checked against.
+function capWarningText(from: PokemonEntry, to: PokemonEntry, ivs: Ivs): string {
+  const exceeded = LEAGUES.filter((l) => l.cpCap !== null && evolutionExceedsCap(from, to, ivs, l.cpCap!)).map((l) => l.label);
+  if (exceeded.length === 0) return "";
+  const caps = exceeded.length === 1 ? `${exceeded[0]} cap` : `${exceeded.join(" & ")} caps`;
+  return `Evolving from ${from.name} at its own optimal level exceeds the ${caps}.`;
 }
 
 let pokemonList: PokemonEntry[] = [];
@@ -82,6 +104,15 @@ let stageCards: StageCardHandle[] = [];
 // buddy) — never on an IV edit, which just looks a combo up in it.
 let rankingsByStage: Record<string, Record<string, RankedCombo[]>> = {};
 const steppers: Record<"atk" | "def" | "hp", IvStepperHandle> = {} as never;
+
+// Which league's moves to show — null means "whichever (stage, league) pair
+// ranks best across the whole evolution line" (the original behavior).
+// Persisted per-browser since it's a personal preference (some players only
+// ever care about Master League, say), not something worth putting in the
+// shareable URL — the URL already identifies the Pokemon/IVs being shared,
+// not which move column the sharer happened to be looking at.
+const MOVES_LEAGUE_PREF_KEY = "ranks-moves-league";
+let movesLeagueOverride: string | null = localStorage.getItem(MOVES_LEAGUE_PREF_KEY);
 
 function currentIvs() {
   return { atk: steppers.atk.get(), def: steppers.def.get(), hp: steppers.hp.get() };
@@ -106,17 +137,30 @@ function render() {
       const target = findCombo(rankingsByLeague[league.id]!, ivs);
       card.rankEls.get(league.id)!.textContent = `#${target.rank.toLocaleString()} / 4096`;
 
-      if (target.rank < bestRank) {
+      const isMovesCandidate = movesLeagueOverride === null || movesLeagueOverride === league.id;
+      if (isMovesCandidate && target.rank < bestRank) {
         bestRank = target.rank;
         bestEntry = entry;
         bestLeague = league;
       }
     }
+
+    if (i > 0) {
+      const text = capWarningText(chain[i - 1]!, entry, ivs);
+      card.capWarningEl.textContent = text;
+      card.capWarningEl.hidden = text === "";
+    }
   });
 
-  // The single best (stage, league) rank across the whole evolution line —
-  // shown once, not once per stage.
+  for (const btn of els.movesLeagueToggle) {
+    btn.setAttribute("aria-pressed", String((btn.dataset.league || null) === movesLeagueOverride));
+  }
+
+  // The single best (stage, league) rank across the whole evolution line
+  // (or within the chosen league, if the toggle overrides "best") — shown
+  // once, not once per stage.
   if (bestEntry && bestLeague) renderMoves(bestEntry, bestLeague);
+  else els.movesCard.hidden = true;
 
   updateUrl();
 }
@@ -142,7 +186,8 @@ function moveLabel(moveId: string): string {
 // choice doesn't change with level), computed straight from PvPoke's own
 // battle-sim output rather than something we simulate. See design-doc.md
 // section 13. Shown once, at the top, for whichever (stage, league) pair
-// ranks best across the whole evolution line. Species PvPoke never
+// ranks best — across the whole evolution line by default, or within a
+// single league if the toggle above overrides that. Species PvPoke never
 // simulated just hide the block.
 function renderMoves(entry: PokemonEntry, league: League) {
   const moveset = movesets[entry.id]?.[league.id as "great" | "ultra" | "master"];
@@ -151,7 +196,7 @@ function renderMoves(entry: PokemonEntry, league: League) {
     return;
   }
   els.movesCard.hidden = false;
-  els.movesLeagueNote.textContent = `(${entry.name} · ${league.label})`;
+  els.movesLeagueNote.textContent = `Showing: ${entry.name} · ${league.label}`;
   els.movesFast.textContent = moveLabel(moveset.fast);
   els.movesCharged.textContent = moveset.charged.map(moveLabel).join(", ");
 }
@@ -247,6 +292,19 @@ for (const stat of ["atk", "def", "hp"] as const) {
 // Best Buddy changes the level cap, so it needs a full re-rank, not just a lookup.
 els.bestBuddy.addEventListener("change", onStructuralChange);
 els.form.addEventListener("submit", (e) => e.preventDefault());
+
+// Moves league toggle: "Best" (empty data-league) clears the override back
+// to whole-line auto-pick; a specific league scopes the auto-pick to just
+// that league. Persisted as a personal preference — see the comment on
+// movesLeagueOverride's declaration for why that's localStorage, not the URL.
+for (const btn of els.movesLeagueToggle) {
+  btn.addEventListener("click", () => {
+    movesLeagueOverride = btn.dataset.league || null;
+    if (movesLeagueOverride) localStorage.setItem(MOVES_LEAGUE_PREF_KEY, movesLeagueOverride);
+    else localStorage.removeItem(MOVES_LEAGUE_PREF_KEY);
+    render();
+  });
+}
 
 // Pokemon combobox
 createCombobox({

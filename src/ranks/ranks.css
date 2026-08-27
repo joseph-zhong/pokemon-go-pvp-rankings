@@ -226,10 +226,58 @@ input[type="number"]:focus-visible {
   margin: 0 0 8px;
 }
 
+.moves-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.moves-card-head .league-card-subtitle {
+  margin: 0;
+}
+
+.moves-league-toggle {
+  display: flex;
+  gap: 4px;
+}
+
+.league-toggle-btn {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: var(--accent-soft);
+  border: none;
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.league-toggle-btn:hover {
+  filter: brightness(1.08);
+}
+
+.league-toggle-btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--panel);
+}
+
 #moves-league-note {
+  margin: 8px 0 0;
   text-transform: none;
   letter-spacing: normal;
   font-weight: 500;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.evo-cap-warning {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--danger);
 }
 
 .league-rank-list {

@@ -80,7 +80,16 @@
       </form>
 
       <section id="moves-card" class="card" hidden aria-live="polite">
-        <h2 class="league-card-subtitle">Recommended moves <span id="moves-league-note"></span></h2>
+        <div class="moves-card-head">
+          <h2 class="league-card-subtitle">Recommended moves</h2>
+          <div class="moves-league-toggle" role="group" aria-label="League for recommended moves">
+            <button type="button" class="league-toggle-btn" data-league="">Best</button>
+            <button type="button" class="league-toggle-btn" data-league="great">Great</button>
+            <button type="button" class="league-toggle-btn" data-league="ultra">Ultra</button>
+            <button type="button" class="league-toggle-btn" data-league="master">Master</button>
+          </div>
+        </div>
+        <p class="moves-league-note" id="moves-league-note"></p>
         <dl class="moves-list">
           <div>
             <dt>Fast</dt>

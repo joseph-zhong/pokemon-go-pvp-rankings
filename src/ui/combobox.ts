@@ -42,6 +42,7 @@ export function createCombobox({ input, list, getOptions, onSelect, maxResults =
   let results: ComboboxOption[] = [];
   let activeIndex = -1;
   let suppressNextInput = false;
+  let valueBeforeFocus = input.value;
 
   function render() {
     list.innerHTML = "";
@@ -99,6 +100,7 @@ export function createCombobox({ input, list, getOptions, onSelect, maxResults =
   function select(option: ComboboxOption) {
     suppressNextInput = true;
     input.value = option.label;
+    valueBeforeFocus = option.label; // keep in sync so a later blur doesn't revert this pick
     close();
     onSelect(option);
   }
@@ -156,12 +158,32 @@ export function createCombobox({ input, list, getOptions, onSelect, maxResults =
     }
   });
 
-  input.addEventListener("blur", () => close());
+  // Clear on focus so clicking in to search again doesn't require deleting
+  // the current selection first (same pattern as the IV steppers); blurring
+  // without picking anything restores it instead of leaving the field
+  // empty or full of an unmatched search term. Also clear on click, not
+  // just focus: selecting an option leaves the input focused (select()
+  // preventDefaults the option's mousedown so the browser never moves
+  // focus away), so a follow-up click into the already-focused field
+  // wouldn't otherwise fire a fresh focus event.
+  function clearForSearch() {
+    if (input.value === "") return;
+    valueBeforeFocus = input.value;
+    input.value = "";
+  }
+  input.addEventListener("focus", clearForSearch);
+  input.addEventListener("click", clearForSearch);
+
+  input.addEventListener("blur", () => {
+    close();
+    input.value = valueBeforeFocus;
+  });
 
   return {
     setDisplayValue(value: string) {
       suppressNextInput = true;
       input.value = value;
+      valueBeforeFocus = value;
     },
   };
 }
