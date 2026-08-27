@@ -449,3 +449,63 @@ input[type="number"]:focus-visible {
   font-size: 15px;
 }
 
+.rank-tables-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 12px;
+}
+
+@media (max-width: 520px) {
+  .rank-tables-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rank-table-heading {
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  margin: 0 0 8px;
+}
+
+.rank-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rank-table th {
+  text-align: right;
+  font-weight: 600;
+  color: var(--ink-soft);
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.rank-table th:first-child,
+.rank-table td:first-child {
+  text-align: left;
+}
+
+.rank-table td {
+  text-align: right;
+  padding: 5px 6px;
+}
+
+.rank-table-row {
+  cursor: pointer;
+}
+
+.rank-table-row:hover {
+  background: var(--accent-soft);
+}
+
+.rank-table-row-current {
+  background: var(--accent-soft);
+  font-weight: 700;
+}
+

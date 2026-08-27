@@ -21,6 +21,10 @@ const els = {
   movesLeagueNote: document.getElementById("moves-league-note") as HTMLElement,
   movesFast: document.getElementById("moves-fast") as HTMLElement,
   movesCharged: document.getElementById("moves-charged") as HTMLElement,
+  rankTablesCard: document.getElementById("rank-tables-card") as HTMLElement,
+  rankTablesNote: document.getElementById("rank-tables-note") as HTMLElement,
+  rankTableTop5: document.getElementById("rank-table-top5") as HTMLTableSectionElement,
+  rankTableNearby: document.getElementById("rank-table-nearby") as HTMLTableSectionElement,
 };
 
 interface StageCardHandle {
@@ -30,6 +34,7 @@ interface StageCardHandle {
 }
 
 interface SliderHandle {
+  wrap: HTMLElement;
   /** Whose CP the readout below the track reflects — always this stage's own species. */
   entry: PokemonEntry;
   /** Whose base stats position the Great/Ultra marks. If this stage has a next evolution, that's the evolved species — "will evolving cross the cap" is the actionable question for a pre-evolution, and its own crossing point is usually never reached anyway. A final stage marks its own crossing. */
@@ -130,7 +135,7 @@ function buildLevelSlider(entry: PokemonEntry, levelCap: number): { element: HTM
   readout.className = "level-cp-readout";
   wrap.appendChild(readout);
 
-  const handle: SliderHandle = { entry, markTarget, input, readout, greatMark, ultraMark };
+  const handle: SliderHandle = { wrap, entry, markTarget, input, readout, greatMark, ultraMark };
   input.addEventListener("input", () => updateSliderReadout(handle));
 
   return { element: wrap, handle };
@@ -213,6 +218,8 @@ function render() {
   chain.forEach((entry, i) => {
     const card = stageCards[i]!;
     const rankingsByLeague = rankingsByStage[entry.id]!;
+    let stageBestLeague: League = LEAGUES[0]!;
+    let stageBestRank = Infinity;
 
     for (const league of LEAGUES) {
       const target = findCombo(rankingsByLeague[league.id]!, ivs);
@@ -227,6 +234,11 @@ function render() {
         i > 0 && league.cpCap !== null && evolutionExceedsCap(chain[i - 1]!, entry, ivs, league.cpCap);
       dd.classList.toggle("league-rank-value-dim", impossibleAfterEvolve);
 
+      if (target.rank < stageBestRank) {
+        stageBestRank = target.rank;
+        stageBestLeague = league;
+      }
+
       const isMovesCandidate = movesLeagueOverride === null || movesLeagueOverride === league.id;
       if (isMovesCandidate && target.rank < bestRank) {
         bestRank = target.rank;
@@ -235,7 +247,12 @@ function render() {
       }
     }
 
-    updateSlider(card.slider, ivs, levelCap);
+    // Master League has no CP cap, so the slider's whole reason to exist —
+    // showing where a cap gets crossed — doesn't apply to a Pokemon whose
+    // own best league is Master (e.g. Mewtwo: rank #1 in Master, but a
+    // mediocre rank in Great/Ultra it was never meant to be played at).
+    card.slider.wrap.hidden = stageBestLeague.id === "master";
+    if (!card.slider.wrap.hidden) updateSlider(card.slider, ivs, levelCap);
   });
 
   for (const btn of els.movesLeagueToggle) {
@@ -245,8 +262,13 @@ function render() {
   // The single best (stage, league) rank across the whole evolution line
   // (or within the chosen league, if the toggle overrides "best") — shown
   // once, not once per stage.
-  if (bestEntry && bestLeague) renderMoves(bestEntry, bestLeague);
-  else els.movesCard.hidden = true;
+  if (bestEntry && bestLeague) {
+    renderMoves(bestEntry, bestLeague);
+    renderRankTables(bestEntry, bestLeague, ivs);
+  } else {
+    els.movesCard.hidden = true;
+    els.rankTablesCard.hidden = true;
+  }
 
   updateUrl();
 }
@@ -285,6 +307,49 @@ function renderMoves(entry: PokemonEntry, league: League) {
   els.movesLeagueNote.textContent = `Showing: ${entry.name} · ${league.label}`;
   els.movesFast.textContent = moveLabel(moveset.fast);
   els.movesCharged.textContent = moveset.charged.map(moveLabel).join(", ");
+}
+
+/**
+ * Top 5 (best combos overall) and Nearby (a window of 5-better/5-worse
+ * around the current query) — both read straight off the same rank-sorted
+ * `rankAllIvs` array already built for the (stage, league) pair shown for
+ * moves, so this costs nothing extra to compute. Each row is clickable —
+ * loads that combo's IVs into the form, same as typing them directly.
+ */
+function renderRankTables(entry: PokemonEntry, league: League, ivs: Ivs) {
+  const all = rankingsByStage[entry.id]![league.id]!;
+  const target = findCombo(all, ivs);
+
+  els.rankTablesCard.hidden = false;
+  els.rankTablesNote.textContent = `Showing: ${entry.name} · ${league.label}`;
+
+  fillRankTable(els.rankTableTop5, all.slice(0, 5), target.rank);
+
+  const windowStart = Math.max(0, target.rank - 1 - 5);
+  const windowEnd = Math.min(all.length, target.rank - 1 + 5 + 1);
+  fillRankTable(els.rankTableNearby, all.slice(windowStart, windowEnd), target.rank);
+}
+
+function fillRankTable(tbody: HTMLTableSectionElement, combos: readonly RankedCombo[], currentRank: number) {
+  tbody.innerHTML = "";
+  for (const combo of combos) {
+    const tr = document.createElement("tr");
+    tr.className = combo.rank === currentRank ? "rank-table-row rank-table-row-current" : "rank-table-row";
+    tr.append(
+      el("td", `#${combo.rank.toLocaleString()}`),
+      el("td", `${combo.ivs.atk}/${combo.ivs.def}/${combo.ivs.hp}`),
+      el("td", String(combo.level)),
+      el("td", combo.cp.toLocaleString()),
+      el("td", `${combo.percentage.toFixed(1)}%`),
+    );
+    tr.addEventListener("click", () => {
+      steppers.atk.set(combo.ivs.atk);
+      steppers.def.set(combo.ivs.def);
+      steppers.hp.set(combo.ivs.hp);
+      onQueryChange();
+    });
+    tbody.appendChild(tr);
+  }
 }
 
 /**
