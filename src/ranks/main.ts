@@ -136,9 +136,23 @@ function buildLevelSlider(entry: PokemonEntry, levelCap: number): { element: HTM
   wrap.appendChild(readout);
 
   const handle: SliderHandle = { wrap, entry, markTarget, input, readout, greatMark, ultraMark };
-  input.addEventListener("input", () => updateSliderReadout(handle));
+  input.addEventListener("input", () => syncLevel(Number(input.value)));
 
   return { element: wrap, handle };
+}
+
+// All stage sliders share the same level axis (same MIN_LEVEL, same level
+// cap, since Best Buddy applies line-wide) — level carries over through
+// evolution in the actual game, so "level 30" means the same thing on every
+// card. Dragging any one slider moves them all to that level together,
+// which is the whole point: it turns the Great/Ultra marks (§16) from N
+// independent "where does *this* stage cross" facts into one synced view of
+// "at this exact level, which stages are still cap-eligible."
+function syncLevel(level: number) {
+  for (const card of stageCards) {
+    card.slider.input.value = String(level);
+    updateSliderReadout(card.slider);
+  }
 }
 
 function updateSliderReadout(slider: SliderHandle) {
