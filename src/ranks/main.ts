@@ -26,23 +26,21 @@ const els = {
 interface StageCardHandle {
   root: HTMLElement;
   rankEls: Map<string, HTMLElement>;
+  slider: SliderHandle;
 }
 
-interface LevelSliderHandle {
+interface SliderHandle {
+  /** Whose CP the readout below the track reflects — always this stage's own species. */
   entry: PokemonEntry;
+  /** Whose base stats position the Great/Ultra marks. If this stage has a next evolution, that's the evolved species — "will evolving cross the cap" is the actionable question for a pre-evolution, and its own crossing point is usually never reached anyway. A final stage marks its own crossing. */
+  markTarget: PokemonEntry;
   input: HTMLInputElement;
   readout: HTMLElement;
   greatMark: HTMLElement;
   ultraMark: HTMLElement;
 }
 
-// Only one slider ever exists — for the current (searched) stage. See
-// design-doc.md: rank/CP vs. level for the *searched* species is the
-// question a slider actually answers well; per-stage sliders (one for
-// every evolution) turned out to be more UI than the question needed.
-let levelSlider: LevelSliderHandle | null = null;
-
-/** Builds one evolution stage's result card (header, league ranks) and appends it to #evolution-results. The current stage also gets the level/CP slider. */
+/** Builds one evolution stage's result card (header, league ranks, level/CP slider) and appends it to #evolution-results. Every stage gets a slider now, not just the current one — the whole point is seeing the evolve-boundary from a pre-evolution's own card. */
 function createStageCard(entry: PokemonEntry, isCurrent: boolean, levelCap: number): StageCardHandle {
   const root = document.createElement("section");
   root.className = isCurrent ? "card evo-stage-card evo-stage-current" : "card evo-stage-card";
@@ -81,17 +79,20 @@ function createStageCard(entry: PokemonEntry, isCurrent: boolean, levelCap: numb
   }
   root.appendChild(rankList);
 
-  if (isCurrent) {
-    root.appendChild(buildLevelSlider(entry, levelCap));
-  }
+  const { element: sliderEl, handle: slider } = buildLevelSlider(entry, levelCap);
+  root.appendChild(sliderEl);
 
   els.evolutionResults.appendChild(root);
 
-  return { root, rankEls };
+  return { root, rankEls, slider };
 }
 
-/** CP-by-level slider for the current stage, with Great/Ultra cap crossings marked on the track — lets you see exactly where evolving (or powering up) would cross a cap, instead of just being told yes/no. */
-function buildLevelSlider(entry: PokemonEntry, levelCap: number): HTMLElement {
+/** CP-by-level slider for one stage, with Great/Ultra cap crossings marked on the track — lets you see exactly where evolving (or powering up) would cross a cap, instead of just being told yes/no. */
+function buildLevelSlider(entry: PokemonEntry, levelCap: number): { element: HTMLElement; handle: SliderHandle } {
+  const evolvedId = entry.evolutions?.[0];
+  const markTarget = (evolvedId && pokemonById.get(evolvedId)) || entry;
+  const marksAreForEvolution = markTarget !== entry;
+
   const wrap = document.createElement("div");
   wrap.className = "level-cp-slider";
 
@@ -102,14 +103,14 @@ function buildLevelSlider(entry: PokemonEntry, levelCap: number): HTMLElement {
   greatMark.className = "level-cp-mark";
   const greatLabel = document.createElement("span");
   greatLabel.className = "level-cp-mark-label";
-  greatLabel.textContent = "Great";
+  greatLabel.textContent = marksAreForEvolution ? "→ Great" : "Great";
   greatMark.appendChild(greatLabel);
 
   const ultraMark = document.createElement("div");
   ultraMark.className = "level-cp-mark";
   const ultraLabel = document.createElement("span");
   ultraLabel.className = "level-cp-mark-label";
-  ultraLabel.textContent = "Ultra";
+  ultraLabel.textContent = marksAreForEvolution ? "→ Ultra" : "Ultra";
   ultraMark.appendChild(ultraLabel);
 
   const input = document.createElement("input");
@@ -119,7 +120,8 @@ function buildLevelSlider(entry: PokemonEntry, levelCap: number): HTMLElement {
   input.max = String(levelCap);
   input.step = "0.5";
   input.value = String(levelCap); // start fully powered up — drag down to find where CP crosses each cap
-  input.setAttribute("aria-label", "Level");
+  input.setAttribute("aria-label", `${entry.name} level`);
+  if (marksAreForEvolution) input.title = `Marks show where ${markTarget.name}'s CP crosses each cap, if evolved at this level.`;
 
   track.append(greatMark, ultraMark, input);
   wrap.appendChild(track);
@@ -128,18 +130,17 @@ function buildLevelSlider(entry: PokemonEntry, levelCap: number): HTMLElement {
   readout.className = "level-cp-readout";
   wrap.appendChild(readout);
 
-  levelSlider = { entry, input, readout, greatMark, ultraMark };
-  input.addEventListener("input", () => updateLevelReadout());
+  const handle: SliderHandle = { entry, markTarget, input, readout, greatMark, ultraMark };
+  input.addEventListener("input", () => updateSliderReadout(handle));
 
-  return wrap;
+  return { element: wrap, handle };
 }
 
-function updateLevelReadout() {
-  if (!levelSlider) return;
-  const level = Number(levelSlider.input.value);
-  const cp = calcCp(levelSlider.entry, currentIvs(), level);
-  levelSlider.readout.innerHTML = "";
-  levelSlider.readout.append("Level ", el("strong", String(level)), " · CP ", el("strong", cp.toLocaleString()));
+function updateSliderReadout(slider: SliderHandle) {
+  const level = Number(slider.input.value);
+  const cp = calcCp(slider.entry, currentIvs(), level);
+  slider.readout.innerHTML = "";
+  slider.readout.append("Level ", el("strong", String(level)), " · CP ", el("strong", cp.toLocaleString()));
 }
 
 function el(tag: string, text: string): HTMLElement {
@@ -148,14 +149,13 @@ function el(tag: string, text: string): HTMLElement {
   return node;
 }
 
-/** Repositions the Great/Ultra marks for the current IVs/level cap and refreshes the live readout. Doesn't touch the slider's dragged position — only where it started (a fresh species/Best Buddy toggle) resets that, in onStructuralChange. */
-function updateLevelSlider(ivs: Ivs, levelCap: number) {
-  if (!levelSlider) return;
-  const { entry, input, greatMark, ultraMark } = levelSlider;
+/** Repositions a slider's Great/Ultra marks for the current IVs/level cap (against `markTarget`'s base stats — see SliderHandle) and refreshes the live readout. Doesn't touch the slider's dragged position — only where it started (a fresh species/Best Buddy toggle) resets that, in onStructuralChange. */
+function updateSlider(slider: SliderHandle, ivs: Ivs, levelCap: number) {
+  const { markTarget, greatMark, ultraMark } = slider;
 
   const positionMark = (markEl: HTMLElement, cap: number) => {
-    const crossLevel = bestLevelForCap(entry, ivs, cap, levelCap);
-    const neverExceeds = calcCp(entry, ivs, levelCap) <= cap;
+    const crossLevel = bestLevelForCap(markTarget, ivs, cap, levelCap);
+    const neverExceeds = calcCp(markTarget, ivs, levelCap) <= cap;
     markEl.hidden = neverExceeds;
     if (!neverExceeds) {
       const percent = ((crossLevel - MIN_LEVEL) / (levelCap - MIN_LEVEL)) * 100;
@@ -165,7 +165,7 @@ function updateLevelSlider(ivs: Ivs, levelCap: number) {
   positionMark(greatMark, 1500);
   positionMark(ultraMark, 2500);
 
-  updateLevelReadout();
+  updateSliderReadout(slider);
 }
 
 let pokemonList: PokemonEntry[] = [];
@@ -173,7 +173,9 @@ let pokemonById = new Map<string, PokemonEntry>();
 let moves: Record<string, MoveInfo> = {};
 let movesets: MovesetsBySpecies = {};
 let selected: PokemonEntry | null = null;
-// The entered species plus everything it can still evolve into, in display order.
+// The whole evolution family the entered species belongs to (base form
+// through every evolution), in display order — not just what's forward of
+// `selected`, so navigating to a later stage never hides earlier ones.
 let chain: PokemonEntry[] = [];
 // One result card per entry in `chain`, same order.
 let stageCards: StageCardHandle[] = [];
@@ -232,9 +234,9 @@ function render() {
         bestLeague = league;
       }
     }
-  });
 
-  updateLevelSlider(ivs, levelCap);
+    updateSlider(card.slider, ivs, levelCap);
+  });
 
   for (const btn of els.movesLeagueToggle) {
     btn.setAttribute("aria-pressed", String((btn.dataset.league || null) === movesLeagueOverride));
@@ -286,15 +288,14 @@ function renderMoves(entry: PokemonEntry, league: League) {
 }
 
 /**
- * Breadth-first walk forward through `evolutions` only (never `parent`) —
- * the entered species plus everything it can still evolve into. Branching
- * lines (e.g. Eevee) fan out into multiple entries at the same depth rather
- * than picking one path.
+ * Breadth-first walk forward through `evolutions` only, starting from
+ * `root`. Branching lines (e.g. Eevee) fan out into multiple entries at the
+ * same depth rather than picking one path.
  */
-function forwardEvolutionChain(entry: PokemonEntry): PokemonEntry[] {
-  const seen = new Set([entry.id]);
-  const result = [entry];
-  let frontier = [entry];
+function forwardEvolutionChain(root: PokemonEntry): PokemonEntry[] {
+  const seen = new Set([root.id]);
+  const result = [root];
+  let frontier = [root];
   while (frontier.length > 0) {
     const next: PokemonEntry[] = [];
     for (const node of frontier) {
@@ -312,6 +313,25 @@ function forwardEvolutionChain(entry: PokemonEntry): PokemonEntry[] {
   return result;
 }
 
+/**
+ * The whole evolution family `entry` belongs to — every stage, base form
+ * through final evolutions — regardless of which one `entry` itself is.
+ * Walks back to the base (via `parent`) first, then forward from there.
+ * Without this, navigating to Blissey (by search or by clicking a stage
+ * card) would make Chansey vanish from the list entirely, since only
+ * forward evolutions were ever shown from whichever stage was "current" —
+ * losing the one card the evolve-boundary actually needs to be seen on.
+ */
+function fullEvolutionChain(entry: PokemonEntry): PokemonEntry[] {
+  let root = entry;
+  while (root.parent) {
+    const parent = pokemonById.get(root.parent);
+    if (!parent) break;
+    root = parent;
+  }
+  return forwardEvolutionChain(root);
+}
+
 /** Recompute the ranking table for every league, for every stage in the evolution line — call only when species/best-buddy change. */
 function onStructuralChange() {
   if (!selected) {
@@ -321,11 +341,10 @@ function onStructuralChange() {
     return;
   }
 
-  chain = forwardEvolutionChain(selected);
+  chain = fullEvolutionChain(selected);
   const levelCap = els.bestBuddy.checked ? 51 : 50;
 
   els.evolutionResults.innerHTML = "";
-  levelSlider = null;
   stageCards = chain.map((entry) => createStageCard(entry, entry.id === selected!.id, levelCap));
 
   rankingsByStage = Object.fromEntries(
