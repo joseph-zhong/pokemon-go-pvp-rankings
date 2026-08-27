@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { cpmForLevel } from "./cpm";
-import { bestLevelForCap, calcCp, findCombo, firstRankBelow, leagueById, rankAllIvs } from "./rank";
+import {
+  bestLevelForCap,
+  calcCp,
+  evolutionExceedsCap,
+  findCombo,
+  firstRankBelow,
+  leagueById,
+  rankAllIvs,
+} from "./rank";
 
 // Reference values below were computed with an independent Python
 // implementation of the same formulas against real base stats pulled from
@@ -11,6 +19,13 @@ import { bestLevelForCap, calcCp, findCombo, firstRankBelow, leagueById, rankAll
 const AZUMARILL = { atk: 112, def: 152, hp: 225 };
 const REGISTEEL = { atk: 143, def: 285, hp: 190 };
 const BULBASAUR = { atk: 118, def: 111, hp: 128 };
+const CHANSEY = { atk: 60, def: 128, hp: 487 };
+const BLISSEY = { atk: 129, def: 169, hp: 496 };
+const MAGIKARP = { atk: 29, def: 85, hp: 85 };
+const GYARADOS = { atk: 237, def: 186, hp: 216 };
+const LARVITAR = { atk: 115, def: 93, hp: 137 };
+const PUPITAR = { atk: 155, def: 133, hp: 172 };
+const TYRANITAR = { atk: 251, def: 207, hp: 225 };
 
 describe("cpmForLevel", () => {
   it("matches known reference CPMs", () => {
@@ -93,5 +108,37 @@ describe("firstRankBelow", () => {
   it("returns 1 when even the best combo is below the threshold", () => {
     const all = rankAllIvs(AZUMARILL, leagueById("great"));
     expect(firstRankBelow(all, 101)).toBe(1);
+  });
+});
+
+describe("evolutionExceedsCap", () => {
+  // Real, widely-known community advice this must match: Chansey and
+  // Magikarp are the Great League picks precisely because their evolutions
+  // (Blissey, Gyarados) blow past the cap if you evolve at the level that
+  // was optimal for the pre-evolved form.
+  const IVS = { atk: 15, def: 15, hp: 15 };
+
+  it("flags Chansey -> Blissey as exceeding Great League", () => {
+    expect(evolutionExceedsCap(CHANSEY, BLISSEY, IVS, 1500)).toBe(true);
+  });
+
+  it("flags Chansey -> Blissey as exceeding Ultra League too", () => {
+    expect(evolutionExceedsCap(CHANSEY, BLISSEY, IVS, 2500)).toBe(true);
+  });
+
+  it("flags Magikarp -> Gyarados as exceeding Great League", () => {
+    expect(evolutionExceedsCap(MAGIKARP, GYARADOS, IVS, 1500)).toBe(true);
+  });
+
+  it("flags Larvitar -> Pupitar as exceeding Great League", () => {
+    expect(evolutionExceedsCap(LARVITAR, PUPITAR, IVS, 1500)).toBe(true);
+  });
+
+  it("flags Pupitar -> Tyranitar as exceeding Great League", () => {
+    expect(evolutionExceedsCap(PUPITAR, TYRANITAR, IVS, 1500)).toBe(true);
+  });
+
+  it("does not flag evolving into the same base stats (nothing changes, cap can't be newly exceeded)", () => {
+    expect(evolutionExceedsCap(AZUMARILL, AZUMARILL, IVS, 1500)).toBe(false);
   });
 });

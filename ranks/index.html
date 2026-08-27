@@ -23,21 +23,25 @@
       <form id="form" class="card" autocomplete="off">
         <div class="field">
           <label for="pokemon-input">Pokemon</label>
-          <div class="combobox" id="pokemon-combobox">
-            <input
-              id="pokemon-input"
-              type="text"
-              role="combobox"
-              aria-expanded="false"
-              aria-autocomplete="list"
-              aria-controls="pokemon-listbox"
-              placeholder="Search Pokemon…"
-              autocomplete="off"
-              autocorrect="off"
-              autocapitalize="off"
-              spellcheck="false"
-            />
-            <ul id="pokemon-listbox" class="combobox-list" role="listbox" hidden></ul>
+          <div class="pokemon-nav-row">
+            <button type="button" class="stepper-btn evo-nav-btn" id="evo-prev-btn" aria-label="Previous evolution" disabled>‹</button>
+            <div class="combobox" id="pokemon-combobox">
+              <input
+                id="pokemon-input"
+                type="text"
+                role="combobox"
+                aria-expanded="false"
+                aria-autocomplete="list"
+                aria-controls="pokemon-listbox"
+                placeholder="Search Pokemon…"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false"
+              />
+              <ul id="pokemon-listbox" class="combobox-list" role="listbox" hidden></ul>
+            </div>
+            <button type="button" class="stepper-btn evo-nav-btn" id="evo-next-btn" aria-label="Next evolution" disabled>›</button>
           </div>
         </div>
 
@@ -80,7 +84,16 @@
       </form>
 
       <section id="moves-card" class="card" hidden aria-live="polite">
-        <h2 class="league-card-subtitle">Recommended moves <span id="moves-league-note"></span></h2>
+        <div class="moves-card-head">
+          <h2 class="league-card-subtitle">Recommended moves</h2>
+          <div class="moves-league-toggle" role="group" aria-label="League for recommended moves">
+            <button type="button" class="league-toggle-btn" data-league="">Best</button>
+            <button type="button" class="league-toggle-btn" data-league="great">Great</button>
+            <button type="button" class="league-toggle-btn" data-league="ultra">Ultra</button>
+            <button type="button" class="league-toggle-btn" data-league="master">Master</button>
+          </div>
+        </div>
+        <p class="moves-league-note" id="moves-league-note"></p>
         <dl class="moves-list">
           <div>
             <dt>Fast</dt>

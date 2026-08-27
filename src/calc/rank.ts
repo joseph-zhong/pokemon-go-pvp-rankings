@@ -63,6 +63,21 @@ export function bestLevelForCap(base: BaseStats, ivs: Ivs, cpCap: number | null,
   return best;
 }
 
+/**
+ * Whether evolving would push this Pokemon over `cpCap`, assuming it's
+ * powered up to its own optimal level for that cap *before* evolving
+ * (standard practice, and the only level a "should I evolve" question
+ * makes sense at — level never decreases, so evolving locks in whatever
+ * level you're already at). Real examples this matches community advice
+ * on: Chansey -> Blissey and Magikarp -> Gyarados both exceed Great
+ * League this way, which is exactly why Chansey and Magikarp themselves
+ * are the Great League picks, not their evolutions.
+ */
+export function evolutionExceedsCap(base: BaseStats, evolvedBase: BaseStats, ivs: Ivs, cpCap: number): boolean {
+  const level = bestLevelForCap(base, ivs, cpCap);
+  return calcCp(evolvedBase, ivs, level) > cpCap;
+}
+
 export function statProduct(base: BaseStats, ivs: Ivs, level: number): number {
   const stats = statsAtLevel(base, ivs, level);
   return stats.atk * stats.def * stats.hp;
