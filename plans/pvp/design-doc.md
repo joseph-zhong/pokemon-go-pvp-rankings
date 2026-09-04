@@ -67,3 +67,47 @@ A member's own `counters` list only says "this loses to X" — it doesn't say wh
 Also added a **manual "My team" section** below the 3 suggestions: 3 search slots (the `disabledReason` combobox, same pattern as the first cut of §4, now genuinely used again) searching the *full* eligible pool rather than the top-24 shortlist, since picking your own team is precisely for reaching past the shortlist. Same member-info and threat-analysis rendering as the suggested teams, so all 4 teams on the page (3 suggested + manual) read consistently.
 
 Also added a one-line **score legend** ("Score is PvPoke's 0-100 battle-sim rating...") — the raw number had no context otherwise.
+
+## 8. Next: exhaustive search, role-aware teams, shareable state
+
+Not started — planned here first since all three interact (role-aware scoring changes what the exhaustive search optimizes over; URL vs. local state is really "which piece of state is a shareable result vs. your private workspace").
+
+### 8a. Exhaustive search over the shortlist
+
+`suggestTeams()` today is a greedy heuristic seeded from N different starting points — reasonable when the pool was assumed too large to search exhaustively, but the shortlist actually shown to users is only ~24 candidates. C(24,3) = 2,024 possible teams. Evaluating all of them is trivial (sub-few-ms in JS) — there's no reason left to settle for a heuristic here.
+
+**Decision:** replace the greedy fill with brute force over the shortlist. Needs one new thing the greedy version didn't: a single combined objective to rank 2,024 teams against, since "pick greedily to minimize overlap" doesn't produce a sortable score for a fixed team. Proposed:
+
+```
+objective(team) = averageScore(team) - PENALTY * sharedThreatWeight(team)
+sharedThreatWeight(team) = sum over analyzeTeamThreats(team) of (beatsCount - 1), for beatsCount > 1
+```
+
+i.e. every "extra" member a shared threat counters beyond the first costs `PENALTY` points off the team's average score. Starting point: `PENALTY = 3` (a team with one double-threat loses ~3 points, roughly the gap between a top-5 and top-15 pick in most leagues) — call this out as a tunable constant with a comment, not a derived value; adjust after looking at real output, not in the abstract.
+
+For the 3 "alternatives," sort all 2,024 teams by `objective` descending and greedily accept into the results list only teams sharing at most 1 member with every team already accepted — keeps the 3 shown teams genuinely different choices instead of near-duplicates of the global optimum, same goal §3's seed-diversity had, now applied as a filter over exhaustive results instead of a generation strategy.
+
+### 8b. Role-aware teams (leads / switches / closers)
+
+Real GBL team-building is role-based — a cheap neutral **lead**, a bulky **safe switch** that can eat a bad matchup, and a heavy **closer** held in reserve — not just "3 highest overall score." PvPoke's rankings already compute this: `rankings/<cup>/{leads,switches,closers,overall}/rankings-<cp>.json`, one JSON per role, same shape as the `overall` file `fetch-gamemaster.mjs` already pulls.
+
+**Decision:** fetch all 4 role scenarios per league (not just `overall`) into `public/data/teams/<league>-<role>.min.json`. Two things to decide before implementing, not just default silently:
+
+- **Data cost:** 11 leagues × 4 roles instead of × 1 — four times the file count, though each individual file stays small and per-league lazy-loading means a session only ever fetches the roles for leagues actually visited. Acceptable; call out in the PR body with real before/after byte counts, not an estimate.
+- **How role feeds into team-building** — two options, pick one rather than both to avoid scope creep:
+  (a) manual: each of the 3 "My team" slots gets a role label (Lead/Switch/Closer), and that slot's search ranks/sorts by that role's score instead of overall — the user explicitly builds a role-balanced team.
+  (b) automatic: the suggester tries to fill one of each role per generated team, using each role's own score to pick within it.
+  Recommendation: **(a) first** — it's the simpler change (a label + a different sort key per slot, no change to the suggestion algorithm), and it teaches the role concept explicitly rather than hiding it inside auto-generated picks. (b) can follow once (a) proves the data/UI is right.
+
+### 8c. Persistence: URL for shareable results, localStorage for workspace
+
+Two different questions were being asked as one: "make `/pvp/` shareable via URL" and "remember my shortlist exclusions between visits" are different kinds of state with different best homes.
+
+**Decision — don't pick one mechanism for everything, split by what the state is for:**
+
+- **URL query params** for the *result* someone would actually want to send a friend: league/cup + the manual team's 3 species ids (`?l=great&team=azumarill,registeel,skarmory`), mirroring `/ranks/`'s existing `?pokemon=...&league=...&ivs=...` pattern exactly. A manual team is a shareable artifact — "look what I built" — the same way a rank result is.
+- **`localStorage`** for pool exclusions (which chips are toggled off). This is working-session state, not a result — nobody sends a friend a link to say "here's which 20 of the top 24 I didn't exclude." Persisting it locally means a returning user doesn't lose their exclusions on refresh, without bloating the URL with up to 24 excluded ids that would dwarf the actual shareable content.
+
+This is the same split tools like Figma/Excalidraw use: URL identifies the shareable artifact, local storage holds your personal editing session on top of it. Concretely: `localStorage.setItem('pvp-excluded-' + leagueKey, JSON.stringify([...excluded]))`, namespaced per league key so switching leagues doesn't leak one league's exclusions into another's chip list.
+
+**Explicitly not doing:** encoding exclusions in the URL, or persisting the manual team to localStorage instead of the URL. Keeping the split clean is more important than either mechanism being individually "more complete."
