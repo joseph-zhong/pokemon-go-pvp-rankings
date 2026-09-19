@@ -6,9 +6,9 @@ export default defineConfig({
     target: "es2020",
     rollupOptions: {
       input: {
-        main: resolve(__dirname, "index.html"),
-        ranks: resolve(__dirname, "ranks/index.html"),
-        pvp: resolve(__dirname, "pvp/index.html"),
+        main: resolve(import.meta.dirname, "index.html"),
+        ranks: resolve(import.meta.dirname, "ranks/index.html"),
+        pvp: resolve(import.meta.dirname, "pvp/index.html"),
       },
     },
   },
